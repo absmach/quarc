@@ -1,0 +1,30 @@
+# ULX3S ECP5-85K pin constraints for Quarc SoC
+# Phase 0: clk, UART, SPI to PMOD GP0, status LEDs
+
+LOCATE COMP "clk_25mhz"    SITE "G2";
+IOBUF PORT "clk_25mhz"     IO_TYPE=LVCMOS33;
+FREQUENCY PORT "clk_25mhz" 25 MHZ;
+
+# UART via FTDI
+LOCATE COMP "uart_tx"      SITE "L4";
+LOCATE COMP "uart_rx"      SITE "M1";
+IOBUF PORT "uart_tx"       IO_TYPE=LVCMOS33;
+IOBUF PORT "uart_rx"       IO_TYPE=LVCMOS33;
+
+# SPI to host (PMOD connector GP0)
+LOCATE COMP "spi_sck"      SITE "B11";
+LOCATE COMP "spi_mosi"     SITE "C11";
+LOCATE COMP "spi_miso"     SITE "A10";
+LOCATE COMP "spi_cs_n"     SITE "A9";
+IOBUF PORT "spi_sck"       IO_TYPE=LVCMOS33;
+IOBUF PORT "spi_mosi"      IO_TYPE=LVCMOS33;
+IOBUF PORT "spi_miso"      IO_TYPE=LVCMOS33;
+IOBUF PORT "spi_cs_n"      IO_TYPE=LVCMOS33;
+
+# Status LEDs
+LOCATE COMP "led[0]"       SITE "B2";
+LOCATE COMP "led[1]"       SITE "C2";
+LOCATE COMP "led[2]"       SITE "C1";
+IOBUF PORT "led[0]"        IO_TYPE=LVCMOS25;
+IOBUF PORT "led[1]"        IO_TYPE=LVCMOS25;
+IOBUF PORT "led[2]"        IO_TYPE=LVCMOS25;
