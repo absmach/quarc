@@ -147,9 +147,9 @@ module tb_kat;
         begin
             @(negedge clk);
             bus_req = 1'b1; bus_we = 1'b0; bus_addr = addr;
-            @(posedge clk);
+            @(posedge clk);       // DUT latches registered reads here
+            @(negedge clk);       // bus_rdata reflects the latched value
             val = bus_rdata;
-            @(negedge clk);
             bus_req = 1'b0;
         end
     endtask

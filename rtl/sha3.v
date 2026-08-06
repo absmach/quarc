@@ -64,8 +64,13 @@ module sha3 (
     wire        permute_done;
     wire [1599:0] state_nxt;
 
-    reg [7:0]   msg_buf [0:MSG_MAX-1];
-    reg [7:0]   out_buf [0:OUT_MAX-1];
+    // Message and output buffers as word-addressed RAMs with synchronous
+    // reads so yosys maps them to ECP5 block RAM (EBR) instead of thousands
+    // of flip-flops and wide muxes (which congested place-and-route).
+    reg [31:0]  msg_mem [0:MSG_MAX/4 - 1];   // 128 x 32 = 512 bytes
+    reg [31:0]  out_mem [0:OUT_MAX/4 - 1];   // 64  x 32 = 256 bytes
+    reg [31:0]  msg_wrd_q;                   // pre-read absorb word
+    reg [31:0]  out_wrd_q;                   // registered DATA_OUT word
 
     reg         ready, absorb_done, squeeze_done, error;
 
@@ -89,13 +94,19 @@ module sha3 (
 
     // global byte position in the sponge input for absorb
     wire [11:0] gpos   = b*rate + j;
-    // byte to XOR in during absorb: message, pad, or 0
-    wire [7:0]  absorb_byte = (gpos < len)        ? msg_buf[gpos] :
-                              (gpos == len)       ? pad           :
+    // byte to XOR in during absorb: message (pre-read from RAM), pad, or 0
+    wire [7:0]  absorb_byte = (gpos < len)        ? msg_wrd_q[(gpos & 3)*8 +: 8] :
+                              (gpos == len)       ? pad                          :
                                                    8'h00;
     // 0x80 terminator at the very end of the final block
     wire [7:0]  absorb_byte_p = (b == nblocks-1 && j == rate-1) ?
                                 (absorb_byte | 8'h80) : absorb_byte;
+
+    // RAM read address for the absorb pipeline: word containing byte j+1
+    // of the next absorb position. Clamped to the RAM range (the read is
+    // unused once past the message length).
+    wire [11:0] gpos_next = (j == rate-1) ? (b+1)*rate : (b*rate + j + 1);
+    wire [6:0]  msg_rd_w  = (gpos_next < 12'd512) ? gpos_next[8:2] : 7'd127;
 
     // ------------------------------------------------------------------
     // Keccak-f[1600] permutation
@@ -116,8 +127,7 @@ module sha3 (
         bus_rdata = 32'h0;
         case (bus_addr[7:0])
             8'h04: bus_rdata = {28'b0, error, squeeze_done, absorb_done, ready};
-            8'h10: bus_rdata = {out_buf[out_rd+3], out_buf[out_rd+2],
-                                out_buf[out_rd+1], out_buf[out_rd]};
+            8'h10: bus_rdata = out_wrd_q;
             default: bus_rdata = 32'h0;
         endcase
     end
@@ -144,6 +154,8 @@ module sha3 (
             out_rd          <= 10'd0;
             state           <= 1600'b0;
             permute_start   <= 1'b0;
+            msg_wrd_q       <= 32'h0;
+            out_wrd_q       <= 32'h0;
             ready           <= 1'b1;
             absorb_done     <= 1'b0;
             squeeze_done    <= 1'b0;
@@ -162,6 +174,11 @@ module sha3 (
             if (read_data_out_q)
                 out_rd <= out_rd + 4;
 
+            // synchronous DATA_OUT read (RAM): capture the word on request,
+            // serve it on the bus's rvalid cycle.
+            if (bus_req && !bus_we && bus_addr == 8'h10)
+                out_wrd_q <= out_mem[out_rd[7:2]];
+
             // ---- bus writes ----
             if (bus_req && bus_we) begin
                 case (bus_addr[7:0])
@@ -172,11 +189,8 @@ module sha3 (
                     end
                     8'h08: mode        <= bus_wdata[2:0];
                     8'h0C: begin
-                        msg_buf[msg_wr]   <= bus_wdata[7:0];
-                        msg_buf[msg_wr+1] <= bus_wdata[15:8];
-                        msg_buf[msg_wr+2] <= bus_wdata[23:16];
-                        msg_buf[msg_wr+3] <= bus_wdata[31:24];
-                        msg_wr            <= msg_wr + 4;
+                        msg_mem[msg_wr[8:2]] <= bus_wdata;
+                        msg_wr                <= msg_wr + 4;
                     end
                     8'h14: len         <= bus_wdata[9:0];
                     8'h18: squeeze_len <= bus_wdata[9:0];
@@ -195,6 +209,8 @@ module sha3 (
                 out_rd        <= 10'd0;
                 state         <= 1600'b0;
                 permute_start <= 1'b0;
+                msg_wrd_q     <= 32'h0;
+                out_wrd_q     <= 32'h0;
                 ready         <= 1'b1;
                 absorb_done   <= 1'b0;
                 squeeze_done  <= 1'b0;
@@ -214,6 +230,7 @@ module sha3 (
                             absorb_done <= 1'b0;
                             squeeze_done<= 1'b0;
                             error       <= 1'b0;
+                            msg_wrd_q   <= msg_mem[0];   // pre-read first word
                             fsm         <= ABSORB;
                         end else if (squeeze_start_req) begin
                             if (!absorb_done) begin
@@ -230,8 +247,11 @@ module sha3 (
                     end
 
                     ABSORB: begin
-                        // XOR current byte into the sponge state
+                        // XOR current byte into the sponge state; pre-read
+                        // the word holding the next absorb byte (synchronous
+                        // RAM read for EBR inference).
                         state[8*j +: 8] <= state[8*j +: 8] ^ absorb_byte_p;
+                        msg_wrd_q       <= msg_mem[msg_rd_w];
                         if (j == rate - 1) begin
                             j             <= 9'd0;
                             permute_start <= 1'b1;
@@ -259,16 +279,26 @@ module sha3 (
                         if (out_pos >= squeeze_len) begin
                             squeeze_done <= 1'b1;
                             fsm          <= IDLE;
-                        end else begin
-                            out_buf[out_pos] <= state[8*(out_pos % rate) +: 8];
-                            out_pos          <= out_pos + 1;
-                            if ((out_pos % rate) == rate - 1) begin
-                                // block boundary: permute if more output needed
-                                if (out_pos + 1 < squeeze_len) begin
-                                    permute_start <= 1'b1;
-                                    fsm           <= SQUEEZE_PERMUTE;
-                                end
+                        end else if ((out_pos % rate) == rate - 4) begin
+                            // last word of this block: write it, then permute
+                            // for the next block if more output is needed
+                            out_mem[out_pos[8:2]] <=
+                                {state[8*(out_pos % rate + 3) +: 8],
+                                 state[8*(out_pos % rate + 2) +: 8],
+                                 state[8*(out_pos % rate + 1) +: 8],
+                                 state[8*(out_pos % rate + 0) +: 8]};
+                            out_pos <= out_pos + 4;
+                            if (out_pos + 4 < squeeze_len) begin
+                                permute_start <= 1'b1;
+                                fsm           <= SQUEEZE_PERMUTE;
                             end
+                        end else begin
+                            out_mem[out_pos[8:2]] <=
+                                {state[8*(out_pos % rate + 3) +: 8],
+                                 state[8*(out_pos % rate + 2) +: 8],
+                                 state[8*(out_pos % rate + 1) +: 8],
+                                 state[8*(out_pos % rate + 0) +: 8]};
+                            out_pos <= out_pos + 4;
                         end
                     end
 
