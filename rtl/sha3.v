@@ -102,6 +102,17 @@ module sha3 (
     wire [7:0]  absorb_byte_p = (b == nblocks-1 && j == rate-1) ?
                                 (absorb_byte | 8'h80) : absorb_byte;
 
+    // combinational absorb XOR mask: a single active byte at position j.
+    // Per-position enables (instead of a dynamic part-select into `state`)
+    // replace a 200:1 write mux with a regular XOR, which routes far better.
+    wire [1599:0] absorb_mask;
+    genvar gax;
+    generate
+        for (gax = 0; gax < 200; gax = gax + 1) begin : g_abs_mask
+            assign absorb_mask[gax*8 +: 8] = (j == gax) ? absorb_byte_p : 8'h00;
+        end
+    endgenerate
+
     // RAM read address for the absorb pipeline: word containing byte j+1
     // of the next absorb position. Clamped to the RAM range (the read is
     // unused once past the message length).
@@ -250,7 +261,7 @@ module sha3 (
                         // XOR current byte into the sponge state; pre-read
                         // the word holding the next absorb byte (synchronous
                         // RAM read for EBR inference).
-                        state[8*j +: 8] <= state[8*j +: 8] ^ absorb_byte_p;
+                        state <= state ^ absorb_mask;
                         msg_wrd_q       <= msg_mem[msg_rd_w];
                         if (j == rate - 1) begin
                             j             <= 9'd0;
