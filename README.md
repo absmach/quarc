@@ -292,8 +292,8 @@ Status legend: 🟢 verified · 🟡 code complete, awaiting verification · �
 
 | Phase               | Deliverable                            | Key Exit Gate                           | Status                                        |
 | ------------------- | -------------------------------------- | --------------------------------------- | --------------------------------------------- |
-| 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | 🟡 code complete, sim/synth/board not yet run |
-| 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | ⚪ not started                                |
+| 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | 🟢 sim + synth + PnR verified (26.9 MHz)      |
+| 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | 🟢 72/72 KAT + formal BMC pass; bus wiring pending |
 | 2 — Entropy         | TRNG + SHAKE-256 DRBG                  | SP 800-22 pass + DRBG KAT               | ⚪ not started                                |
 | 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | ⚪ not started                                |
 | 4 — ML-KEM          | ML-KEM-768 + KUE integration           | 100% FIPS 203 KAT + KUE rejection tests | ⚪ not started                                |

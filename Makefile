@@ -38,9 +38,21 @@ sim: $(IBEX_V) $(FW_HEX)
 	iverilog -g2012 -o build/sim.vvp $(ALL_SRCS) $(TB_SRCS) -s tb_top
 	vvp build/sim.vvp
 
-sim-%: $(IBEX_V) $(FW_HEX)
-	iverilog -g2012 -o build/sim_$*.vvp $(IBEX_V) rtl/$*.v tb/tb_$*.sv -s tb_$*
+sim-%: $(IBEX_V)
+	iverilog -g2012 -o build/sim_$*.vvp $(IBEX_V) \
+		$(if $(filter keccak,$*),,rtl/keccak.v) rtl/$*.v tb/tb_$*.sv -s tb_$*
 	vvp build/sim_$*.vvp
+
+# tb_keccak reads reference permutation vectors from kat/
+KAT_VEC := kat/keccak_f1600_zero.dat kat/keccak_f1600_count.dat \
+           kat/sha3/sha3_256.txt kat/sha3/sha3_512.txt \
+           kat/sha3/shake128.txt kat/sha3/shake256.txt
+
+$(KAT_VEC): scripts/gen_kat.py
+	python3 scripts/gen_kat.py
+
+sim-keccak: $(KAT_VEC)
+sim-sha3: $(KAT_VEC)
 
 synth: $(IBEX_V)
 	yosys -p "read_verilog $(ALL_SRCS); synth_ecp5 -abc9 -top quarc_top -json build/quarc.json" 2>&1 | tee build/synth.log
@@ -69,7 +81,7 @@ formal:
 formal-%:
 	sby -f formal/$*.sby
 
-kat:
+kat: $(KAT_VEC)
 	python3 scripts/run_kat.py
 
 clean:

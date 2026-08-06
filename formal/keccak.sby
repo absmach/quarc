@@ -1,0 +1,13 @@
+[options]
+mode bmc
+depth 30
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -sv -D FORMAL keccak.v
+prep -top keccak_f1600
+
+[files]
+rtl/keccak.v
