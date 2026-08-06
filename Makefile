@@ -25,6 +25,9 @@ $(IBEX_V): $(IBEX_SV)
 		-I $(IBEX_PRIM)/rtl -I ibex/vendor/lowrisc_ip/dv/sv/dv_utils \
 		-y $(IBEX_PRIM)/rtl -y $(IBEX_PRIM)_generic/rtl \
 		-w $(IBEX_V)
+	# prim_clock_gating is an ICG (latch) cell that Yosys `check -assert`
+	# rejects and that we don't need on an FPGA target; make it pass-through.
+	sed -i -e '/^module prim_clock_gating (/,/^endmodule$$/{/^[[:space:]]*reg en_latch;$$/d;/^[[:space:]]*always @(\*) begin$$/,/^[[:space:]]*end$$/d;s/^[[:space:]]*assign clk_o = en_latch & clk_i;/assign clk_o = clk_i;/;/^[[:space:]]*initial _sv2v_0 = 0;$$/d;}' $(IBEX_V)
 
 fw: $(FW_HEX)
 

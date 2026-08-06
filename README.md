@@ -1,6 +1,6 @@
 # Quarc — Post-Quantum Secure Element
 
-> *"A post-quantum Secure Element with hardware-accelerated ML-KEM and ML-DSA, securing IoT devices today and anchoring trust for TEEs tomorrow."*
+> _"A post-quantum Secure Element with hardware-accelerated ML-KEM and ML-DSA, securing IoT devices today and anchoring trust for TEEs tomorrow."_
 
 **Status:** DRAFT — Internal Only | **Classification:** Proprietary & Confidential
 
@@ -10,7 +10,7 @@
 
 Quarc is a post-quantum Secure Element (SE): a cryptographic coprocessor targeting the [ULX3S](https://radiona.org/ulx3s/) open-hardware FPGA board (Lattice ECP5-85K). It integrates with a host MCU via SPI, provides hardware-accelerated post-quantum cryptographic operations (ML-KEM-768 and ML-DSA-65 per NIST FIPS 203/204), stores device keys with hardware-enforced usage policy, and serves as the hardware root of trust for IoT devices.
 
-Quarc is the answer to the question: *what does a TROPIC01-class SE look like after the PQC transition?*
+Quarc is the answer to the question: _what does a TROPIC01-class SE look like after the PQC transition?_
 
 ### Why PQC Now
 
@@ -70,18 +70,18 @@ Host MCU (STM32 / ESP32)
 
 ### Module LUT Budget (ECP5-85K target)
 
-| Module | Est. LUTs |
-|--------|-----------|
-| Ibex RV32IMC (via sv2v) | ~3,500 |
-| Keccak/SHAKE engine | ~1,500 |
-| NTT engine (shared, parameterised) | ~3,000 |
-| ML-KEM-768 controller | ~1,500 |
-| ML-DSA-65 controller | ~2,000 |
-| Key Usage Enforcer | ~200 |
-| TRNG + DRBG | ~500 |
-| SPI slave | ~400 |
-| Bus, lifecycle, rollback, boot ROM, timer | ~750 |
-| **Total** | **~13,700 / 84,000 LUTs** |
+| Module                                    | Est. LUTs                 |
+| ----------------------------------------- | ------------------------- |
+| Ibex RV32IMC (via sv2v)                   | ~3,500                    |
+| Keccak/SHAKE engine                       | ~1,500                    |
+| NTT engine (shared, parameterised)        | ~3,000                    |
+| ML-KEM-768 controller                     | ~1,500                    |
+| ML-DSA-65 controller                      | ~2,000                    |
+| Key Usage Enforcer                        | ~200                      |
+| TRNG + DRBG                               | ~500                      |
+| SPI slave                                 | ~400                      |
+| Bus, lifecycle, rollback, boot ROM, timer | ~750                      |
+| **Total**                                 | **~13,700 / 84,000 LUTs** |
 
 ---
 
@@ -170,22 +170,22 @@ quarc/
 
 All commands require an established Noise IK session (except `CHANNEL_INIT`). All commands are lifecycle-gated in hardware.
 
-| ID | Command | Description |
-|----|---------|-------------|
-| 0x01 | `PING` | Liveness check; returns firmware version, lifecycle state, TRNG health |
-| 0x02 | `GET_RANDOM` | Return up to 64 bytes from DRBG |
-| 0x10 | `KEM_KEYGEN` | Generate ML-KEM-768 keypair; dk stored in slot |
-| 0x11 | `KEM_ENCAP` | Encapsulate with provided ek; return ciphertext + shared secret |
-| 0x12 | `KEM_DECAP` | Decapsulate using slot dk (KUE enforces DECAP_ONLY) |
-| 0x20 | `DSA_KEYGEN` | Generate ML-DSA-65 keypair; sk stored in slot |
-| 0x21 | `DSA_SIGN` | Sign message hash using slot sk (KUE enforces SIGN_ONLY) |
-| 0x22 | `DSA_VERIFY` | Verify signature using provided vk |
-| 0x30 | `STORE_KEY` | Import key into slot (encrypted via channel) |
-| 0x40 | `GET_STATUS` | Lifecycle state, TRNG health, boot status, slot occupancy, rollback counter |
-| 0x50 | `SECURE_ERASE` | Destroy all key material |
-| 0x60 | `FW_UPDATE` | Deliver firmware (ML-DSA verified + rollback checked before flash) |
-| 0x70 | `SET_LIFECYCLE` | Advance lifecycle state (one-way) |
-| 0x80 | `CHANNEL_INIT` | Initiate Noise IK handshake |
+| ID   | Command         | Description                                                                 |
+| ---- | --------------- | --------------------------------------------------------------------------- |
+| 0x01 | `PING`          | Liveness check; returns firmware version, lifecycle state, TRNG health      |
+| 0x02 | `GET_RANDOM`    | Return up to 64 bytes from DRBG                                             |
+| 0x10 | `KEM_KEYGEN`    | Generate ML-KEM-768 keypair; dk stored in slot                              |
+| 0x11 | `KEM_ENCAP`     | Encapsulate with provided ek; return ciphertext + shared secret             |
+| 0x12 | `KEM_DECAP`     | Decapsulate using slot dk (KUE enforces DECAP_ONLY)                         |
+| 0x20 | `DSA_KEYGEN`    | Generate ML-DSA-65 keypair; sk stored in slot                               |
+| 0x21 | `DSA_SIGN`      | Sign message hash using slot sk (KUE enforces SIGN_ONLY)                    |
+| 0x22 | `DSA_VERIFY`    | Verify signature using provided vk                                          |
+| 0x30 | `STORE_KEY`     | Import key into slot (encrypted via channel)                                |
+| 0x40 | `GET_STATUS`    | Lifecycle state, TRNG health, boot status, slot occupancy, rollback counter |
+| 0x50 | `SECURE_ERASE`  | Destroy all key material                                                    |
+| 0x60 | `FW_UPDATE`     | Deliver firmware (ML-DSA verified + rollback checked before flash)          |
+| 0x70 | `SET_LIFECYCLE` | Advance lifecycle state (one-way)                                           |
+| 0x80 | `CHANNEL_INIT`  | Initiate Noise IK handshake                                                 |
 
 ---
 
@@ -203,17 +203,17 @@ State transitions are enforced in RTL — one-way, irreversible, not firmware-wr
 
 ## Security Properties
 
-| Property | Mechanism |
-|----------|-----------|
-| Key material never leaves trust boundary | KUE DMA-only; PMP Region 3 blocks firmware; bus decoder formally verified |
-| Firmware cannot read key bytes | Hardware key usage policy (KUE RTL), not firmware convention |
-| Boot integrity | ML-DSA signature verified by Boot ROM before any firmware executes |
-| Anti-rollback | Monotonic counter in Boot ROM address space; firmware cannot write |
-| Entropy assurance | TRNG with SP 800-90B RCT + APT in RTL; hard halt on failure |
-| Quantum resistance | ML-KEM-768 (FIPS 203) + ML-DSA-65 (FIPS 204) for all new operations |
-| Channel security | Noise IK with ML-KEM + X25519 hybrid; AES-256-GCM; forward secrecy |
-| NTT residual leakage | Scratchpad zeroed in RTL after every operation; OP_DONE gated on zeroization |
-| Lifecycle integrity | RTL state machine; no backward transition possible |
+| Property                                 | Mechanism                                                                    |
+| ---------------------------------------- | ---------------------------------------------------------------------------- |
+| Key material never leaves trust boundary | KUE DMA-only; PMP Region 3 blocks firmware; bus decoder formally verified    |
+| Firmware cannot read key bytes           | Hardware key usage policy (KUE RTL), not firmware convention                 |
+| Boot integrity                           | ML-DSA signature verified by Boot ROM before any firmware executes           |
+| Anti-rollback                            | Monotonic counter in Boot ROM address space; firmware cannot write           |
+| Entropy assurance                        | TRNG with SP 800-90B RCT + APT in RTL; hard halt on failure                  |
+| Quantum resistance                       | ML-KEM-768 (FIPS 203) + ML-DSA-65 (FIPS 204) for all new operations          |
+| Channel security                         | Noise IK with ML-KEM + X25519 hybrid; AES-256-GCM; forward secrecy           |
+| NTT residual leakage                     | Scratchpad zeroed in RTL after every operation; OP_DONE gated on zeroization |
+| Lifecycle integrity                      | RTL state machine; no backward transition possible                           |
 
 ---
 
@@ -221,18 +221,18 @@ State transitions are enforced in RTL — one-way, irreversible, not firmware-wr
 
 100% open-source. No Vivado, no Quartus.
 
-| Tool | Purpose |
-|------|---------|
-| [sv2v](https://github.com/zachjs/sv2v) | Convert Ibex SystemVerilog → Verilog for Yosys |
-| [Yosys](https://yosyshq.net/yosys/) | RTL synthesis (`synth_ecp5 -abc9`) |
-| [nextpnr-ecp5](https://github.com/YosysHQ/nextpnr) | Place and route |
-| [ecppack](https://github.com/YosysHQ/prjtrellis) | Bitstream generation |
-| [openFPGALoader](https://github.com/trabucayre/openFPGALoader) | Program ULX3S |
-| [Icarus Verilog](http://iverilog.icarus.com/) | Functional simulation |
-| [Verilator](https://verilator.org/) | Fast regression simulation |
-| [SymbiYosys](https://symbiyosys.readthedocs.io/) | Formal verification (BMC + k-induction) |
-| [GTKWave](http://gtkwave.sourceforge.net/) | Waveform viewer |
-| riscv32-unknown-elf-gcc | Firmware compiler (`march=rv32imc`) |
+| Tool                                                           | Purpose                                        |
+| -------------------------------------------------------------- | ---------------------------------------------- |
+| [sv2v](https://github.com/zachjs/sv2v)                         | Convert Ibex SystemVerilog → Verilog for Yosys |
+| [Yosys](https://yosyshq.net/yosys/)                            | RTL synthesis (`synth_ecp5 -abc9`)             |
+| [nextpnr-ecp5](https://github.com/YosysHQ/nextpnr)             | Place and route                                |
+| [ecppack](https://github.com/YosysHQ/prjtrellis)               | Bitstream generation                           |
+| [openFPGALoader](https://github.com/trabucayre/openFPGALoader) | Program ULX3S                                  |
+| [Icarus Verilog](http://iverilog.icarus.com/)                  | Functional simulation                          |
+| [Verilator](https://verilator.org/)                            | Fast regression simulation                     |
+| [SymbiYosys](https://symbiyosys.readthedocs.io/)               | Formal verification (BMC + k-induction)        |
+| [GTKWave](http://gtkwave.sourceforge.net/)                     | Waveform viewer                                |
+| riscv32-unknown-elf-gcc                                        | Firmware compiler (`march=rv32imc`)            |
 
 Install everything via [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build).
 
@@ -290,30 +290,30 @@ make clean
 
 Status legend: 🟢 verified · 🟡 code complete, awaiting verification · 🔵 in progress · ⚪ not started
 
-| Phase | Deliverable | Key Exit Gate | Status |
-|-------|-------------|---------------|--------|
-| 0 — Foundation | Ibex boots on ULX3S, UART "QUARC v0" | Physical board test | 🟡 code complete, sim/synth/board not yet run |
-| 1 — Keccak | SHA-3/SHAKE engine | 100% NIST SHA-3 KAT + SymbiYosys proof | ⚪ not started |
-| 2 — Entropy | TRNG + SHAKE-256 DRBG | SP 800-22 pass + DRBG KAT | ⚪ not started |
-| 3 — NTT | Shared NTT/iNTT engine | NTT(iNTT(p))==p + zeroization formal | ⚪ not started |
-| 4 — ML-KEM | ML-KEM-768 + KUE integration | 100% FIPS 203 KAT + KUE rejection tests | ⚪ not started |
-| 5 — ML-DSA | ML-DSA-65 + hardware rejection sampler | 100% FIPS 204 KAT + timing at 50 MHz | ⚪ not started |
-| 6 — Security Policy | KUE, PMP, lifecycle, rollback formal | All 6 SymbiYosys proofs pass | ⚪ not started |
-| 7 — SPI + Channel | Noise IK, AES-GCM, all 14 commands | Encrypted session end-to-end | ⚪ not started |
-| 8 — Integration | Secure boot, 24h soak, OTA demo | All PRD v1.1 Section 9.5 criteria | ⚪ not started |
+| Phase               | Deliverable                            | Key Exit Gate                           | Status                                        |
+| ------------------- | -------------------------------------- | --------------------------------------- | --------------------------------------------- |
+| 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | 🟡 code complete, sim/synth/board not yet run |
+| 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | ⚪ not started                                |
+| 2 — Entropy         | TRNG + SHAKE-256 DRBG                  | SP 800-22 pass + DRBG KAT               | ⚪ not started                                |
+| 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | ⚪ not started                                |
+| 4 — ML-KEM          | ML-KEM-768 + KUE integration           | 100% FIPS 203 KAT + KUE rejection tests | ⚪ not started                                |
+| 5 — ML-DSA          | ML-DSA-65 + hardware rejection sampler | 100% FIPS 204 KAT + timing at 50 MHz    | ⚪ not started                                |
+| 6 — Security Policy | KUE, PMP, lifecycle, rollback formal   | All 6 SymbiYosys proofs pass            | ⚪ not started                                |
+| 7 — SPI + Channel   | Noise IK, AES-GCM, all 14 commands     | Encrypted session end-to-end            | ⚪ not started                                |
+| 8 — Integration     | Secure boot, 24h soak, OTA demo        | All PRD v1.1 Section 9.5 criteria       | ⚪ not started                                |
 
 ---
 
 ## Performance Targets (50 MHz on ECP5-85K)
 
-| Operation | Quarc target | pqm4 baseline (M4 @ 168 MHz) | Min speedup |
-|-----------|-------------|-------------------------------|-------------|
-| ML-KEM-768 KeyGen | < 0.5 ms | ~1.5 ms | ≥ 3× |
-| ML-KEM-768 Encaps | < 0.5 ms | ~1.7 ms | ≥ 3× |
-| ML-KEM-768 Decaps | < 0.5 ms | ~1.8 ms | ≥ 3× |
-| ML-DSA-65 KeyGen | < 2 ms | ~6 ms | ≥ 3× |
-| ML-DSA-65 Sign | < 5 ms | ~12 ms | ≥ 2× |
-| ML-DSA-65 Verify | < 2 ms | ~5 ms | ≥ 2× |
+| Operation         | Quarc target | pqm4 baseline (M4 @ 168 MHz) | Min speedup |
+| ----------------- | ------------ | ---------------------------- | ----------- |
+| ML-KEM-768 KeyGen | < 0.5 ms     | ~1.5 ms                      | ≥ 3×        |
+| ML-KEM-768 Encaps | < 0.5 ms     | ~1.7 ms                      | ≥ 3×        |
+| ML-KEM-768 Decaps | < 0.5 ms     | ~1.8 ms                      | ≥ 3×        |
+| ML-DSA-65 KeyGen  | < 2 ms       | ~6 ms                        | ≥ 3×        |
+| ML-DSA-65 Sign    | < 5 ms       | ~12 ms                       | ≥ 2×        |
+| ML-DSA-65 Verify  | < 2 ms       | ~5 ms                        | ≥ 2×        |
 
 ---
 
@@ -364,4 +364,4 @@ Quarc is **closed commercial IP**. The synthesizable path uses only permissive-l
 
 ---
 
-*Quarc Secure Element // v1.0 // 2025 // Proprietary & Confidential*
+_Quarc Secure Element // v1.0 // 2025 // Proprietary & Confidential_
