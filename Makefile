@@ -1,4 +1,7 @@
-IBEX_SV    := $(wildcard ibex/rtl/*.sv)
+IBEX_SV    := $(filter-out ibex/rtl/ibex_tracer.sv ibex/rtl/ibex_tracer_pkg.sv \
+                ibex/rtl/ibex_top_tracing.sv, $(wildcard ibex/rtl/*.sv))
+IBEX_PRIM  := ibex/vendor/lowrisc_ip/ip/prim
+IBEX_PKG   := $(wildcard $(IBEX_PRIM)/rtl/*pkg.sv) $(wildcard $(IBEX_PRIM)_generic/rtl/*pkg.sv)
 IBEX_V     := build/ibex.v
 QUARC_SRCS := rtl/top.v rtl/bus.v rtl/boot_rom.v rtl/keccak.v rtl/sha3.v \
               rtl/ntt.v rtl/mlkem.v rtl/mldsa.v rtl/trng.v rtl/drbg.v \
@@ -15,7 +18,13 @@ all: bitstream
 
 $(IBEX_V): $(IBEX_SV)
 	mkdir -p build
-	sv2v $(IBEX_SV) -w $(IBEX_V)
+	# -D SYNTHESIS drops sim-only Ibex code (DPI exports, fcov macros) that
+	# Icarus cannot elaborate; the functional core is unaffected.
+	sv2v $(IBEX_SV) $(IBEX_PKG) \
+		-D SYNTHESIS \
+		-I $(IBEX_PRIM)/rtl -I ibex/vendor/lowrisc_ip/dv/sv/dv_utils \
+		-y $(IBEX_PRIM)/rtl -y $(IBEX_PRIM)_generic/rtl \
+		-w $(IBEX_V)
 
 fw: $(FW_HEX)
 

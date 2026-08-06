@@ -1,0 +1,41 @@
+
+boot_phase0.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+00000000 <_start>:
+   0:	00018137          	lui	sp,0x18
+   4:	20000437          	lui	s0,0x20000
+   8:	10040413          	addi	s0,s0,256 # 20000100 <putc+0x200000a2>
+   c:	05100513          	li	a0,81
+  10:	04e000ef          	jal	5e <putc>
+  14:	05500513          	li	a0,85
+  18:	046000ef          	jal	5e <putc>
+  1c:	04100513          	li	a0,65
+  20:	03e000ef          	jal	5e <putc>
+  24:	05200513          	li	a0,82
+  28:	036000ef          	jal	5e <putc>
+  2c:	04300513          	li	a0,67
+  30:	02e000ef          	jal	5e <putc>
+  34:	02000513          	li	a0,32
+  38:	026000ef          	jal	5e <putc>
+  3c:	07600513          	li	a0,118
+  40:	01e000ef          	jal	5e <putc>
+  44:	03000513          	li	a0,48
+  48:	016000ef          	jal	5e <putc>
+  4c:	4535                	li	a0,13
+  4e:	010000ef          	jal	5e <putc>
+  52:	4529                	li	a0,10
+  54:	00a000ef          	jal	5e <putc>
+
+00000058 <hang>:
+  58:	10500073          	wfi
+  5c:	bff5                	j	58 <hang>
+
+0000005e <putc>:
+  5e:	00442283          	lw	t0,4(s0)
+  62:	0012f293          	andi	t0,t0,1
+  66:	fe029ce3          	bnez	t0,5e <putc>
+  6a:	00a40023          	sb	a0,0(s0)
+  6e:	8082                	ret
