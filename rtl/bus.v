@@ -94,13 +94,16 @@ module quarc_bus (
 
     // ── Data port decode ─────────────────────────────────────────────────────
     // High-level decode by addr[31:24]:
+    //   0x10 -> crypto region (Keccak/SHA-3 at 0x1000_0000)
     //   0x20 -> peripheral region (SPI/UART/Timer)
     //   else -> bus_err
-    // Within 0x20 region, addr[15:8] selects device.
+    // Within each region, addr[15:8] selects the device.
+    wire data_crypto_sel = (data_addr[31:24] == 8'h10);
     wire data_periph_sel = (data_addr[31:24] == 8'h20);
     wire uart_sel        = data_periph_sel && (data_addr[15:8] == 8'h01);
     wire timer_sel       = data_periph_sel && (data_addr[15:8] == 8'h02);
     wire spi_sel         = data_periph_sel && (data_addr[15:8] == 8'h00);
+    wire sha3_sel        = data_crypto_sel && (data_addr[15:8] == 8'h00);
 
     // Local 8-bit register offset for each peripheral
     wire [7:0] periph_addr = data_addr[7:0];
@@ -144,7 +147,25 @@ module quarc_bus (
     );
 
     assign irq_timer    = timer_irq;
-    assign irq_external = uart_irq;
+
+    // ── SHA-3 / SHAKE (base 0x1000_0000) ─────────────────────────────────────
+    wire        sha3_ack;
+    wire [31:0] sha3_rdata;
+    wire        sha3_irq;
+
+    sha3 u_sha3 (
+        .clk       (clk),
+        .rst_n     (rst_n),
+        .bus_req   (data_req && sha3_sel),
+        .bus_we    (data_we),
+        .bus_addr  (data_addr[7:0]),
+        .bus_wdata (data_wdata),
+        .bus_rdata (sha3_rdata),
+        .bus_ack   (sha3_ack),
+        .irq_done  (sha3_irq)
+    );
+
+    assign irq_external = uart_irq | sha3_irq;
 
     // ── SPI slave (stub for Phase 0) ─────────────────────────────────────────
     // Tie outputs so the pins are driven; module gets implemented in Phase 7.
@@ -153,24 +174,27 @@ module quarc_bus (
 
     // ── Data response mux ────────────────────────────────────────────────────
     // Latch which device responded so we can mux rdata one cycle later.
-    reg uart_sel_q, timer_sel_q, spi_sel_q, unmapped_q, was_read_q;
+    reg uart_sel_q, timer_sel_q, spi_sel_q, sha3_sel_q, unmapped_q, was_read_q;
     always @(posedge clk) begin
         if (!rst_n) begin
             uart_sel_q  <= 1'b0;
             timer_sel_q <= 1'b0;
             spi_sel_q   <= 1'b0;
+            sha3_sel_q  <= 1'b0;
             unmapped_q  <= 1'b0;
             was_read_q  <= 1'b0;
         end else if (data_req) begin
             uart_sel_q  <= uart_sel;
             timer_sel_q <= timer_sel;
             spi_sel_q   <= spi_sel;
-            unmapped_q  <= !data_periph_sel;
+            sha3_sel_q  <= sha3_sel;
+            unmapped_q  <= !data_periph_sel && !data_crypto_sel;
             was_read_q  <= !data_we;
         end else begin
             uart_sel_q  <= 1'b0;
             timer_sel_q <= 1'b0;
             spi_sel_q   <= 1'b0;
+            sha3_sel_q  <= 1'b0;
             unmapped_q  <= 1'b0;
             was_read_q  <= 1'b0;
         end
@@ -189,6 +213,8 @@ module quarc_bus (
             data_rdata = uart_rdata;
         else if (timer_sel_q && was_read_q)
             data_rdata = timer_rdata;
+        else if (sha3_sel_q && was_read_q)
+            data_rdata = sha3_rdata;
         else if (spi_sel_q && was_read_q)
             data_rdata = 32'h0; // stub
         else
@@ -197,7 +223,7 @@ module quarc_bus (
 
     // Touch the ack signals so synth doesn't warn — they're not used in Phase 0
     // because we always rvalid one cycle after req.
-    wire ack_unused = &{1'b0, uart_ack, timer_ack};
+    wire ack_unused = &{1'b0, uart_ack, timer_ack, sha3_ack};
 
     // ── LEDs ─────────────────────────────────────────────────────────────────
     // led[0]: heartbeat from timer IRQ (toggled in firmware via memory write)

@@ -74,6 +74,11 @@ module sha3 (
     reg         squeeze_start_req;
     reg         soft_reset;
 
+    // delayed DATA_OUT read request: the bus returns rdata one cycle after
+    // the request, so the buffer pointer must advance one cycle later too,
+    // otherwise the read would skip to the next word.
+    reg         read_data_out_q;
+
     // ------------------------------------------------------------------
     // Rate (bytes per permutation) and domain-separation pad byte
     // ------------------------------------------------------------------
@@ -152,6 +157,11 @@ module sha3 (
             squeeze_start_req <= 1'b0;
             soft_reset        <= 1'b0;
 
+            // latch the DATA_OUT read request; advance out_rd one cycle later
+            read_data_out_q <= bus_req && !bus_we && (bus_addr == 8'h10);
+            if (read_data_out_q)
+                out_rd <= out_rd + 4;
+
             // ---- bus writes ----
             if (bus_req && bus_we) begin
                 case (bus_addr[7:0])
@@ -174,8 +184,6 @@ module sha3 (
                     default: ;
                 endcase
             end
-            if (bus_req && !bus_we && bus_addr == 8'h10)
-                out_rd <= out_rd + 4;
 
             if (soft_reset) begin
                 fsm           <= IDLE;
