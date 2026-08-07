@@ -59,6 +59,8 @@ module shake_sampler (
     reg         byte_pending;     // a byte is being offered, not yet consumed
     wire        samp_byte_valid = byte_pending;
     reg         samp_done_q;
+    reg         absorb_started;   // absorb_done went low (absorb actually running)
+    reg         poll_setup;       // skip the first STATUS-read cycle (stale rdata)
     wire        samp_byte_ready;
     wire [11:0] samp_coeff;
     wire        samp_coeff_valid, samp_done;
@@ -114,6 +116,8 @@ module shake_sampler (
             st            <= S_IDLE;
             sub           <= 4'd0;
             sq_go         <= 2'd0;
+            absorb_started <= 1'b0;
+            poll_setup     <= 1'b0;
             word_cnt      <= 12'd0;
             byt           <= 2'd0;
             cur_word      <= 32'h0;
@@ -178,13 +182,21 @@ module shake_sampler (
 
                 S_ABS_GO: begin
                     s_req <= 1'b1; s_we <= 1'b1; s_addr <= 8'h00; s_wdata <= 32'h1;
+                    absorb_started <= 1'b0;
+                    poll_setup     <= 1'b0;
                     st <= S_ABS_POLL;
                 end
 
                 S_ABS_POLL: begin
                     s_req <= 1'b1; s_we <= 1'b0; s_addr <= 8'h04;
-                    // wait until the sha3 is back in IDLE (ready) with absorb done
-                    if (s_rdata[1:0] == 2'b11) st <= S_SQ_GO;
+                    if (!poll_setup) begin
+                        poll_setup <= 1'b1;     // skip the stale-read cycle
+                    end else begin
+                        // absorb_done must first go low (new absorb running),
+                        // then high (completed) with the sha3 back in IDLE
+                        if (!s_rdata[1]) absorb_started <= 1'b1;
+                        if (absorb_started && s_rdata[1:0] == 2'b11) st <= S_SQ_GO;
+                    end
                 end
 
                 S_SQ_GO: begin

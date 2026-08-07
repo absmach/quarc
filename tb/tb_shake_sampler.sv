@@ -1,7 +1,9 @@
-// tb_shake_sampler.sv - ML-KEM polynomial generation (SHAKE -> sampling)
+// tb_shake_sampler.sv - ML-KEM polynomial generation (SHAKE -> SampleNTT / CBD)
 //
 // Drives shake_sampler (keccak c2 + sha3 + sampling) to generate one
-// polynomial per call and checks the 256 coefficients against the KAT.
+// polynomial per call and checks the 256 coefficients against the KAT:
+//   mode 0 (XOF):  SampleNTT(rho, 0, 0)
+//   mode 1 (PRF):  CBD(SHAKE256(sigma || 0), eta=2)
 
 `timescale 1ns/1ps
 
@@ -46,22 +48,12 @@ module tb_shake_sampler;
 
     integer failures = 0;
     integer n, k, guard;
-    integer cyc = 0;
-
-    integer wdbg = 0;
-    always @(posedge clk) begin
-        cyc = cyc + 1;
-
-        if (cyc > 545 && cyc < 560)
-            $display("cyc=%0d st=%0d om0=%08x outrd=%0d owq=%08x", cyc, dut.st, dut.u_sha3.out_mem[0], dut.u_sha3.out_rd, dut.u_sha3.out_wrd_q);
-
-    end
 
     task run_poly;
         input integer mode;
         integer mism;
         begin
-            // start
+            // start the module
             @(negedge clk); start_i = 1; @(negedge clk); start_i = 0;
             // collect 256 coeffs
             n = 0; guard = 0;
@@ -73,11 +65,13 @@ module tb_shake_sampler;
                     n = n + 1;
                 end
             end
+            // wait for the module to finish
             guard = 0;
             while (!dut.done_o && guard < 200000) begin
                 @(negedge clk);
                 guard = guard + 1;
             end
+            // compare
             mism = 0;
             for (k = 0; k < 256; k = k + 1) begin
                 if (mode == 0) begin if (got[k] !== ntt_exp[k]) mism = mism + 1; end
@@ -86,13 +80,7 @@ module tb_shake_sampler;
             if (mism == 0) begin
                 $display("PASS: mode %0d polynomial matches (%0d coeffs)", mode, n);
             end else begin
-                if (mode == 0)
-                    for (k = 130; k < 134; k = k + 1)
-                        $display("  got[%0d]=%03x exp[%0d]=%03x", k, got[k], k, ntt_exp[k]);
-                else
-                    for (k = 0; k < 8; k = k + 1)
-                        $display("  got[%0d]=%03x exp[%0d]=%03x", k, got[k], k, cbd_exp[k]);
-                $display("FAIL: mode %0d polynomial mismatch (%0d/%0d) n=%0d st=%0d", mode, mism, 256, n, dut.st);
+                $display("FAIL: mode %0d polynomial mismatch (%0d/%0d)", mode, mism, 256);
                 failures = failures + 1;
             end
         end
@@ -112,13 +100,11 @@ module tb_shake_sampler;
         mode_i = 0;
         run_poly(0);
 
-
         // mode 1 (PRF): CBD(SHAKE256(sigma || 0), eta=2) -- seed = sigma (0x20..0x3F)
         seed_i = 256'h3F3E3D3C_3B3A3938_37363534_33323130_2F2E2D2C_2B2A2928_27262524_23222120;
         x0_i = 8'h00;
         eta_i = 2;
         mode_i = 1;
-
         run_poly(1);
 
         if (failures == 0) $display("PASS: shake_sampler verified");
