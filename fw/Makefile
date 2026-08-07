@@ -25,7 +25,7 @@ words += [0] * (4096 - len(words)); \
 open(sys.argv[2], "w").write("\n".join("%08x" % w for w in words) + "\n")'
 
 .PHONY: all clean
-all: boot.hex boot_sha3.hex
+all: boot.hex boot_sha3.hex boot_entropy.hex
 
 build/boot_%.elf: boot_%.S link.ld
 	mkdir -p build

@@ -59,13 +59,21 @@ kat-drbg: sim-drbg
 # SoC-level SHA-3 test: boots the boot_sha3 firmware on quarc_top and checks
 # the UART for "SHA3 OK".
 FW_SHA3_HEX := fw/boot_sha3.hex
+FW_ENTROPY_HEX := fw/boot_entropy.hex
 
 $(FW_SHA3_HEX): fw/boot_sha3.S fw/link.ld
+	$(MAKE) -C fw
+
+$(FW_ENTROPY_HEX): fw/boot_entropy.S fw/link.ld
 	$(MAKE) -C fw
 
 sim-sha3-soc: $(IBEX_V) $(FW_SHA3_HEX)
 	iverilog -g2012 -D QUARC_SIM -o build/sim_sha3_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_sha3_soc.sv -s tb_sha3_soc
 	vvp build/sim_sha3_soc.vvp
+
+sim-entropy-soc: $(IBEX_V) $(FW_ENTROPY_HEX)
+	iverilog -g2012 -D QUARC_SIM -o build/sim_entropy_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_entropy_soc.sv -s tb_entropy_soc
+	vvp build/sim_entropy_soc.vvp
 
 synth: $(IBEX_V)
 	yosys -p "read_verilog $(ALL_SRCS); synth_ecp5 -abc9 -top quarc_top -json build/quarc.json" 2>&1 | tee build/synth.log
