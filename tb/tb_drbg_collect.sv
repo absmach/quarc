@@ -114,6 +114,19 @@ module tb_drbg_collect;
                 bus_read(8'h28, rdata);
                 $fwrite(fd, "%08x\n", rdata);
             end
+            // refresh entropy and reseed before the 1000-call limit
+            if ((i % 900) == 899) begin
+                bus_write(8'h34, 32'h12345678 + i);
+                bus_write(8'h34, 32'h9abcdef0 + i);
+                bus_write(8'h34, 32'h0fedcba9 + i);
+                bus_write(8'h34, 32'h10203040 + i);
+                bus_write(8'h34, 32'h50607080 + i);
+                bus_write(8'h34, 32'h90a0b0c0 + i);
+                bus_write(8'h34, 32'hd0e0f000 + i);
+                bus_write(8'h34, 32'h0a0b0c0d + i);
+                bus_write(8'h20, 32'h2);   // reseed
+                wait_done;
+            end
         end
 
         $fclose(fd);

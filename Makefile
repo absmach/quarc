@@ -56,6 +56,18 @@ sim-sha3: $(KAT_VEC)
 sim-drbg: $(KAT_VEC)
 kat-drbg: sim-drbg
 
+# collect a long DRBG bit stream for the SP 800-22 statistical suite
+drbg-collect: $(IBEX_V) $(KAT_VEC)
+	iverilog -g2012 -D QUARC_SIM -o build/sim_drbg_collect.vvp $(IBEX_V) \
+		rtl/keccak.v rtl/keccak_engine.v rtl/drbg.v tb/tb_drbg_collect.sv -s tb_drbg_collect
+	vvp build/sim_drbg_collect.vvp
+	@echo "collected -> build/drbg_bits.txt"
+
+# NIST SP 800-22 statistical suite (17 tests) on DRBG output
+PY := $(shell python3 -c "import scipy" 2>/dev/null && echo python3 || (test -x "$(HOME)/.pyenv/shims/python3" && echo "$(HOME)/.pyenv/shims/python3" || echo python3))
+sp80022: drbg-collect
+	$(PY) scripts/run_sp80022.py
+
 # SoC-level SHA-3 test: boots the boot_sha3 firmware on quarc_top and checks
 # the UART for "SHA3 OK".
 FW_SHA3_HEX := fw/boot_sha3.hex

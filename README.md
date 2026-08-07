@@ -75,15 +75,15 @@ Host MCU (STM32 / ESP32)
 
 All crypto blocks share **one** Keccak-f[1600] engine (`rtl/keccak_engine.v`), which dominates the crypto area.
 
-| Module                              | Measured LUTs |
-| ----------------------------------- | ------------- |
-| Ibex RV32IMC + bus/UART/timer/ROM   | ~7,800        |
-| Keccak-f[1600] (full 1600-bit round)| ~10,200       |
-| SHA-3 wrapper (client)              | ~4,200        |
-| DRBG wrapper (client)               | ~8,200        |
-| TRNG (health tests)                 | ~120          |
-| Shared-engine arbitration           | ~1,600        |
-| **Total (current, phase 1–2)**      | **~23,200 / 84,000 LUTs** |
+| Module                               | Measured LUTs             |
+| ------------------------------------ | ------------------------- |
+| Ibex RV32IMC + bus/UART/timer/ROM    | ~7,800                    |
+| Keccak-f[1600] (full 1600-bit round) | ~10,200                   |
+| SHA-3 wrapper (client)               | ~4,200                    |
+| DRBG wrapper (client)                | ~8,200                    |
+| TRNG (health tests)                  | ~120                      |
+| Shared-engine arbitration            | ~1,600                    |
+| **Total (current, phase 1–2)**       | **~23,200 / 84,000 LUTs** |
 
 > Note: the original plan estimated ~1,500 LUTs for Keccak assuming a narrow/serial
 > datapath. The implemented full-width 1600-bit round is inherently ~10k LUTs. A
@@ -298,17 +298,17 @@ make clean
 
 Status legend: 🟢 verified · 🟡 code complete, awaiting verification · 🔵 in progress · ⚪ not started
 
-| Phase               | Deliverable                            | Key Exit Gate                           | Status                                        |
-| ------------------- | -------------------------------------- | --------------------------------------- | --------------------------------------------- |
-| 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | 🟢 sim + synth + PnR verified (26.9 MHz)      |
-| 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | 🟢 72/72 KAT, formal BMC, bus-wired, firmware self-test passes |
-| 2 — Entropy         | TRNG + SHAKE-256 DRBG                  | SP 800-22 pass + DRBG KAT               | 🟢 RCT/APT health, formal BMC, DRBG KAT, SoC firmware test pass; SP 800-22 pending |
-| 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | ⚪ not started                                |
-| 4 — ML-KEM          | ML-KEM-768 + KUE integration           | 100% FIPS 203 KAT + KUE rejection tests | ⚪ not started                                |
-| 5 — ML-DSA          | ML-DSA-65 + hardware rejection sampler | 100% FIPS 204 KAT + timing at 50 MHz    | ⚪ not started                                |
-| 6 — Security Policy | KUE, PMP, lifecycle, rollback formal   | All 6 SymbiYosys proofs pass            | ⚪ not started                                |
-| 7 — SPI + Channel   | Noise IK, AES-GCM, all 14 commands     | Encrypted session end-to-end            | ⚪ not started                                |
-| 8 — Integration     | Secure boot, 24h soak, OTA demo        | All PRD v1.1 Section 9.5 criteria       | ⚪ not started                                |
+| Phase               | Deliverable                            | Key Exit Gate                           | Status                                                                             |
+| ------------------- | -------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
+| 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | 🟢 sim + synth + PnR verified (26.9 MHz)                                           |
+| 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | 🟢 72/72 KAT, formal BMC, bus-wired, firmware self-test passes                     |
+| 2 — Entropy         | TRNG + SHAKE-256 DRBG                  | SP 800-22 pass + DRBG KAT               | 🟢 RCT/APT health, formal BMC, DRBG KAT, SoC firmware test, SP 800-22 17/17 PASS |
+| 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | ⚪ not started                                                                     |
+| 4 — ML-KEM          | ML-KEM-768 + KUE integration           | 100% FIPS 203 KAT + KUE rejection tests | ⚪ not started                                                                     |
+| 5 — ML-DSA          | ML-DSA-65 + hardware rejection sampler | 100% FIPS 204 KAT + timing at 50 MHz    | ⚪ not started                                                                     |
+| 6 — Security Policy | KUE, PMP, lifecycle, rollback formal   | All 6 SymbiYosys proofs pass            | ⚪ not started                                                                     |
+| 7 — SPI + Channel   | Noise IK, AES-GCM, all 14 commands     | Encrypted session end-to-end            | ⚪ not started                                                                     |
+| 8 — Integration     | Secure boot, 24h soak, OTA demo        | All PRD v1.1 Section 9.5 criteria       | ⚪ not started                                                                     |
 
 ---
 
@@ -366,10 +366,10 @@ Status legend: 🟢 verified · 🟡 code complete, awaiting verification · �
 
 ### FPGA targets
 
-| Board | FPGA | Flow | Status |
-|-------|------|------|--------|
-| ULX3S | Lattice ECP5-85K (84k LUTs) | yosys + nextpnr-ecp5 + ecppack | Primary dev target; bitstream builds, 27 MHz |
-| BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins) | Planned — shared Keccak keeps design ~23.2k LUTs; needs Libero port + on-chip RISC-V AXI/SPI bridge |
+| Board        | FPGA                                   | Flow                           | Status                                                                                              |
+| ------------ | -------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| ULX3S        | Lattice ECP5-85K (84k LUTs)            | yosys + nextpnr-ecp5 + ecppack | Primary dev target; bitstream builds, 27 MHz                                                        |
+| BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins)    | Planned — shared Keccak keeps design ~23.2k LUTs; needs Libero port + on-chip RISC-V AXI/SPI bridge |
 
 For the BeagleV-Fire, the SE runs in the PolarFire fabric and is driven by the SoC's own
 RISC-V cores (Linux) over an AXI/SPI bridge, replacing the external-MCU host of the ULX3S setup.
