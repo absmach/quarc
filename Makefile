@@ -35,24 +35,26 @@ $(FW_HEX): fw/boot_phase0.S fw/link.ld
 	$(MAKE) -C fw
 
 sim: $(IBEX_V) $(FW_HEX)
-	iverilog -g2012 -o build/sim.vvp $(ALL_SRCS) $(TB_SRCS) -s tb_top
+	iverilog -g2012 -D QUARC_SIM -o build/sim.vvp $(ALL_SRCS) $(TB_SRCS) -s tb_top
 	vvp build/sim.vvp
 
 sim-%: $(IBEX_V)
-	iverilog -g2012 -o build/sim_$*.vvp $(IBEX_V) \
+	iverilog -g2012 -D QUARC_SIM -o build/sim_$*.vvp $(IBEX_V) \
 		$(if $(filter keccak,$*),,rtl/keccak.v) rtl/$*.v tb/tb_$*.sv -s tb_$*
 	vvp build/sim_$*.vvp
 
 # tb_keccak reads reference permutation vectors from kat/
 KAT_VEC := kat/keccak_f1600_zero.dat kat/keccak_f1600_count.dat \
            kat/sha3/sha3_256.txt kat/sha3/sha3_512.txt \
-           kat/sha3/shake128.txt kat/sha3/shake256.txt
+           kat/sha3/shake128.txt kat/sha3/shake256.txt kat/drbg.txt
 
 $(KAT_VEC): scripts/gen_kat.py
 	python3 scripts/gen_kat.py
 
 sim-keccak: $(KAT_VEC)
 sim-sha3: $(KAT_VEC)
+sim-drbg: $(KAT_VEC)
+kat-drbg: sim-drbg
 
 # SoC-level SHA-3 test: boots the boot_sha3 firmware on quarc_top and checks
 # the UART for "SHA3 OK".
@@ -62,7 +64,7 @@ $(FW_SHA3_HEX): fw/boot_sha3.S fw/link.ld
 	$(MAKE) -C fw
 
 sim-sha3-soc: $(IBEX_V) $(FW_SHA3_HEX)
-	iverilog -g2012 -o build/sim_sha3_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_sha3_soc.sv -s tb_sha3_soc
+	iverilog -g2012 -D QUARC_SIM -o build/sim_sha3_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_sha3_soc.sv -s tb_sha3_soc
 	vvp build/sim_sha3_soc.vvp
 
 synth: $(IBEX_V)

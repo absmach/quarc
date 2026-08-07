@@ -95,9 +95,49 @@ def gen_sha3_vectors():
     write("shake256.txt", lambda m: hashlib.shake_256(m).digest(32))
 
 
+def gen_drbg_vectors():
+    """Generate the SHAKE-256 DRBG reference sequence (kat/drbg.txt)."""
+    os.makedirs(KAT, exist_ok=True)
+
+    def shake_block(x):
+        return hashlib.shake_256(x).digest(136)
+
+    s = bytes(32)                                   # reset state
+    e1 = bytes((i * 0x5D) & 0xFF for i in range(32))
+    e2 = bytes((i * 0xA7) & 0xFF for i in range(32))
+
+    def generate(n):
+        nonlocal s
+        b = shake_block(s)
+        out = b[:n]
+        s = b[32:64]
+        return out
+
+    def reseed(e):
+        nonlocal s
+        x = bytes(a ^ b for a, b in zip(s, e))
+        s = shake_block(x)[:32]
+
+    steps = []
+    reseed(e1); steps.append(("reseed", e1))
+    steps.append(("gen", 32, generate(32)))
+    steps.append(("gen", 16, generate(16)))
+    reseed(e2); steps.append(("reseed", e2))
+    steps.append(("gen", 64, generate(64)))
+    steps.append(("gen", 32, generate(32)))
+
+    with open(os.path.join(KAT, "drbg.txt"), "w") as f:
+        for st in steps:
+            if st[0] == "reseed":
+                f.write("reseed %s\n" % st[1].hex())
+            else:
+                f.write("gen %d %s\n" % (st[1], st[2].hex()))
+
+
 def main():
     gen_permutation_vectors()
     gen_sha3_vectors()
+    gen_drbg_vectors()
     print("generated KAT vectors in", KAT)
     return 0
 

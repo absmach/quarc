@@ -294,7 +294,7 @@ Status legend: 🟢 verified · 🟡 code complete, awaiting verification · �
 | ------------------- | -------------------------------------- | --------------------------------------- | --------------------------------------------- |
 | 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | 🟢 sim + synth + PnR verified (26.9 MHz)      |
 | 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | 🟢 72/72 KAT, formal BMC, bus-wired, firmware self-test passes |
-| 2 — Entropy         | TRNG + SHAKE-256 DRBG                  | SP 800-22 pass + DRBG KAT               | ⚪ not started                                |
+| 2 — Entropy         | TRNG + SHAKE-256 DRBG                  | SP 800-22 pass + DRBG KAT               | 🟢 RCT/APT health, formal BMC, DRBG KAT pass; SP 800-22 + SoC wiring pending |
 | 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | ⚪ not started                                |
 | 4 — ML-KEM          | ML-KEM-768 + KUE integration           | 100% FIPS 203 KAT + KUE rejection tests | ⚪ not started                                |
 | 5 — ML-DSA          | ML-DSA-65 + hardware rejection sampler | 100% FIPS 204 KAT + timing at 50 MHz    | ⚪ not started                                |
