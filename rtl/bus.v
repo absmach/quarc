@@ -256,7 +256,8 @@ module quarc_bus (
         .c2_req      (1'b0),
         .c2_state_in (1600'b0),
         .c2_done     (),
-        .c2_state_out()
+        .c2_state_out(),
+        .c3_req(1'b0), .c3_state_in(1600'b0), .c3_done(), .c3_state_out()
     );
 
     // ── Data RAM (0x0001_4000, 16 KiB) ────────────────────────────────────────
