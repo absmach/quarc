@@ -18,7 +18,8 @@
 `timescale 1ns/1ps
 
 module sha3 #(
-    parameter integer OUT_MAX = 256          // output buffer bytes (>= max squeeze_len)
+    parameter integer OUT_MAX = 256,          // output buffer bytes (>= max squeeze_len)
+    parameter integer MSG_MAX = 512           // message buffer bytes (>= max absorb len)
 ) (
     input  wire        clk,
     input  wire        rst_n,
@@ -48,23 +49,22 @@ module sha3 #(
     localparam [2:0] SQUEEZE         = 3'd4;
     localparam [2:0] SQUEEZE_PERMUTE = 3'd5;
 
-    localparam [9:0] MSG_MAX  = 10'd512;
 
     // ------------------------------------------------------------------
     // Registers / signals
     // ------------------------------------------------------------------
     reg [2:0]   fsm;
     reg [1:0]   mode;
-    reg [9:0]   len;
-    reg [9:0]   squeeze_len;
+    reg [11:0]  len;
+    reg [11:0]  squeeze_len;
     reg [1:0]   irq_en;
 
-    reg [9:0]   b;              // block index during absorb
+    reg [11:0]  b;              // block index during absorb
     reg [8:0]   j;              // byte index within current block
-    reg [9:0]   nblocks;
-    reg [9:0]   out_pos;        // squeeze byte counter
-    reg [9:0]   msg_wr;         // DATA_IN buffer write pointer (bytes)
-    reg [9:0]   out_rd;         // DATA_OUT buffer read pointer (bytes)
+    reg [11:0]  nblocks;
+    reg [11:0]  out_pos;        // squeeze byte counter
+    reg [11:0]  msg_wr;         // DATA_IN buffer write pointer (bytes)
+    reg [11:0]  out_rd;         // DATA_OUT buffer read pointer (bytes)
 
     reg [1599:0] state;
     assign perm_state_in = state;   // shared engine captures at request
@@ -122,7 +122,7 @@ module sha3 #(
     // of the next absorb position. Clamped to the RAM range (the read is
     // unused once past the message length).
     wire [11:0] gpos_next = (j == rate-1) ? (b+1)*rate : (b*rate + j + 1);
-    wire [6:0]  msg_rd_w  = (gpos_next < 12'd512) ? gpos_next[8:2] : 7'd127;
+    wire [9:0]  msg_rd_w  = (gpos_next < MSG_MAX) ? gpos_next[10:2] : (MSG_MAX/4 - 1);
 
     // ------------------------------------------------------------------
     // ------------------------------------------------------------------
@@ -153,15 +153,15 @@ module sha3 #(
         if (!rst_n) begin
             fsm             <= IDLE;
             mode            <= 2'd0;
-            len             <= 10'd0;
-            squeeze_len     <= 10'd0;
+            len             <= 12'd0;
+            squeeze_len     <= 12'd0;
             irq_en          <= 2'd0;
             b               <= 10'd0;
             j               <= 9'd0;
-            nblocks         <= 10'd0;
-            out_pos         <= 10'd0;
-            msg_wr          <= 10'd0;
-            out_rd          <= 10'd0;
+            nblocks         <= 12'd0;
+            out_pos         <= 12'd0;
+            msg_wr          <= 12'd0;
+            out_rd          <= 12'd0;
             state           <= 1600'b0;
             perm_req        <= 1'b0;
             msg_wrd_q       <= 32'h0;
@@ -199,11 +199,11 @@ module sha3 #(
                     end
                     8'h08: mode        <= bus_wdata[2:0];
                     8'h0C: begin
-                        msg_mem[msg_wr[8:2]] <= bus_wdata;
+                        msg_mem[msg_wr[10:2]] <= bus_wdata;
                         msg_wr                <= msg_wr + 4;
                     end
-                    8'h14: len         <= bus_wdata[9:0];
-                    8'h18: squeeze_len <= bus_wdata[9:0];
+                    8'h14: len         <= bus_wdata[11:0];
+                    8'h18: squeeze_len <= bus_wdata[11:0];
                     8'h1C: irq_en      <= bus_wdata[1:0];
                     default: ;
                 endcase
@@ -213,9 +213,9 @@ module sha3 #(
                 fsm           <= IDLE;
                 b             <= 10'd0;
                 j             <= 9'd0;
-                nblocks       <= 10'd0;
+                nblocks       <= 12'd0;
                 out_pos       <= 10'd0;
-                msg_wr        <= 10'd0;
+                msg_wr        <= 12'd0;
                 out_rd        <= 10'd0;
                 state         <= 1600'b0;
                 perm_req <= 1'b0;
@@ -231,7 +231,7 @@ module sha3 #(
                         ready <= 1'b1;
                         if (absorb_start_req) begin
                             ready       <= 1'b0;
-                            msg_wr      <= 10'd0;
+                            msg_wr      <= 12'd0;
                             out_rd      <= 10'd0;
                             b           <= 10'd0;
                             j           <= 9'd0;

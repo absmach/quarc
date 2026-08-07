@@ -64,6 +64,11 @@ sim-keccak-c2: $(KAT_VEC)
 	iverilog -g2012 -D QUARC_SIM -o build/sim_keccak_c2.vvp \
 		rtl/keccak.v rtl/keccak_engine.v tb/tb_keccak_c2.sv -s tb_keccak_c2
 	vvp build/sim_keccak_c2.vvp
+sim-mlkem: $(KAT_VEC)
+	iverilog -g2012 -D QUARC_SIM -o build/sim_mlkem.vvp \
+		rtl/keccak.v rtl/keccak_engine.v rtl/sha3.v rtl/shake_sampler.v rtl/sampling.v rtl/ntt.v \
+		rtl/mlkem.v tb/tb_mlkem.v -s tb_mlkem -I rtl
+	vvp build/sim_mlkem.vvp
 sim-sha3: $(KAT_VEC)
 sim-drbg: $(KAT_VEC)
 sim-ntt: $(KAT_VEC)
