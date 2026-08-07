@@ -35,30 +35,35 @@ $(FW_HEX): fw/boot_phase0.S fw/link.ld
 	$(MAKE) -C fw
 
 sim: $(IBEX_V) $(FW_HEX)
-	iverilog -g2012 -D QUARC_SIM -o build/sim.vvp $(ALL_SRCS) $(TB_SRCS) -s tb_top
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim.vvp $(ALL_SRCS) $(TB_SRCS) -s tb_top
 	vvp build/sim.vvp
 
 sim-%: $(IBEX_V)
-	iverilog -g2012 -D QUARC_SIM -o build/sim_$*.vvp $(IBEX_V) \
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_$*.vvp $(IBEX_V) \
 		$(if $(filter keccak,$*),,rtl/keccak.v rtl/keccak_engine.v) rtl/$*.v tb/tb_$*.sv -s tb_$*
 	vvp build/sim_$*.vvp
 
 # tb_keccak reads reference permutation vectors from kat/
 KAT_VEC := kat/keccak_f1600_zero.dat kat/keccak_f1600_count.dat \
            kat/sha3/sha3_256.txt kat/sha3/sha3_512.txt \
-           kat/sha3/shake128.txt kat/sha3/shake256.txt kat/drbg.txt
+           kat/sha3/shake128.txt kat/sha3/shake256.txt kat/drbg.txt \
+           kat/ntt_in1.txt kat/ntt_in2.txt kat/ntt_fwd1.txt kat/ntt_fwd2.txt \
+           kat/ntt_inv1.txt kat/ntt_mul.txt rtl/ntt_zetas.vh
 
-$(KAT_VEC): scripts/gen_kat.py
+$(KAT_VEC): scripts/gen_kat.py scripts/gen_ntt_kat.py
 	python3 scripts/gen_kat.py
+	python3 scripts/gen_ntt_kat.py
 
 sim-keccak: $(KAT_VEC)
 sim-sha3: $(KAT_VEC)
 sim-drbg: $(KAT_VEC)
+sim-ntt: $(KAT_VEC)
+kat-ntt: sim-ntt
 kat-drbg: sim-drbg
 
 # collect a long DRBG bit stream for the SP 800-22 statistical suite
 drbg-collect: $(IBEX_V) $(KAT_VEC)
-	iverilog -g2012 -D QUARC_SIM -o build/sim_drbg_collect.vvp $(IBEX_V) \
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_drbg_collect.vvp $(IBEX_V) \
 		rtl/keccak.v rtl/keccak_engine.v rtl/drbg.v tb/tb_drbg_collect.sv -s tb_drbg_collect
 	vvp build/sim_drbg_collect.vvp
 	@echo "collected -> build/drbg_bits.txt"
@@ -80,15 +85,15 @@ $(FW_ENTROPY_HEX): fw/boot_entropy.S fw/link.ld
 	$(MAKE) -C fw
 
 sim-sha3-soc: $(IBEX_V) $(FW_SHA3_HEX)
-	iverilog -g2012 -D QUARC_SIM -o build/sim_sha3_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_sha3_soc.sv -s tb_sha3_soc
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_sha3_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_sha3_soc.sv -s tb_sha3_soc
 	vvp build/sim_sha3_soc.vvp
 
 sim-entropy-soc: $(IBEX_V) $(FW_ENTROPY_HEX)
-	iverilog -g2012 -D QUARC_SIM -o build/sim_entropy_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_entropy_soc.sv -s tb_entropy_soc
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_entropy_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_entropy_soc.sv -s tb_entropy_soc
 	vvp build/sim_entropy_soc.vvp
 
 synth: $(IBEX_V)
-	yosys -p "read_verilog $(ALL_SRCS); synth_ecp5 -abc9 -top quarc_top -json build/quarc.json" 2>&1 | tee build/synth.log
+	yosys -p "read_verilog -I rtl $(ALL_SRCS); synth_ecp5 -abc9 -top quarc_top -json build/quarc.json" 2>&1 | tee build/synth.log
 	@grep -E "Number of cells|LUT4|TRELLIS_FF|EBR" build/synth.log
 
 pnr: synth
