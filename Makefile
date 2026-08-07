@@ -48,11 +48,13 @@ KAT_VEC := kat/keccak_f1600_zero.dat kat/keccak_f1600_count.dat \
            kat/sha3/sha3_256.txt kat/sha3/sha3_512.txt \
            kat/sha3/shake128.txt kat/sha3/shake256.txt kat/drbg.txt \
            kat/ntt_in1.txt kat/ntt_in2.txt kat/ntt_fwd1.txt kat/ntt_fwd2.txt \
-           kat/ntt_inv1.txt kat/ntt_mul.txt rtl/ntt_zetas.vh
+           kat/ntt_inv1.txt kat/ntt_mul.txt rtl/ntt_zetas.vh \
+           kat/mlkem_pk.txt kat/mlkem_dk.txt kat/mlkem_ct.txt kat/mlkem_ss.txt kat/mlkem_seed.txt
 
-$(KAT_VEC): scripts/gen_kat.py scripts/gen_ntt_kat.py
+$(KAT_VEC): scripts/gen_kat.py scripts/gen_ntt_kat.py scripts/gen_mlkem_kat.py
 	python3 scripts/gen_kat.py
 	python3 scripts/gen_ntt_kat.py
+	python3 scripts/gen_mlkem_kat.py
 
 sim-keccak: $(KAT_VEC)
 sim-sha3: $(KAT_VEC)
