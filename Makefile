@@ -49,7 +49,8 @@ KAT_VEC := kat/keccak_f1600_zero.dat kat/keccak_f1600_count.dat \
            kat/sha3/shake128.txt kat/sha3/shake256.txt kat/drbg.txt \
            kat/ntt_in1.txt kat/ntt_in2.txt kat/ntt_fwd1.txt kat/ntt_fwd2.txt \
            kat/ntt_inv1.txt kat/ntt_mul.txt rtl/ntt_zetas.vh \
-           kat/mlkem_pk.txt kat/mlkem_dk.txt kat/mlkem_ct.txt kat/mlkem_ss.txt kat/mlkem_seed.txt
+           kat/mlkem_pk.txt kat/mlkem_dk.txt kat/mlkem_ct.txt kat/mlkem_ss.txt kat/mlkem_seed.txt \
+           kat/samp_ntt_in.txt kat/samp_ntt_out.txt kat/samp_cbd_in.txt kat/samp_cbd_out.txt
 
 $(KAT_VEC): scripts/gen_kat.py scripts/gen_ntt_kat.py scripts/gen_mlkem_kat.py
 	python3 scripts/gen_kat.py
@@ -67,6 +68,11 @@ sim-sha3: $(KAT_VEC)
 sim-drbg: $(KAT_VEC)
 sim-ntt: $(KAT_VEC)
 kat-ntt: sim-ntt
+
+# ML-KEM sampling datapath (SampleNTT + CBD)
+sim-sampling: $(KAT_VEC)
+	iverilog -g2012 -D QUARC_SIM -o build/sim_sampling.vvp rtl/sampling.v tb/tb_sampling.sv -s tb_sampling
+	vvp build/sim_sampling.vvp
 
 # NTT engine client port (driven by the ML-KEM controller)
 sim-ntt-c: $(KAT_VEC)

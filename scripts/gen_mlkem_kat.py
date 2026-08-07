@@ -319,6 +319,25 @@ def main():
         f.write("d %s\nz %s\nm %s\n" % (d.hex(), z.hex(), m.hex()))
     print("wrote kat/mlkem_seed.txt")
 
+    # sampling datapath vectors (SampleNTT + CBD)
+    rho_ntt = bytes(range(32))
+    sigma_ntt = bytes(range(32, 64))
+    xof = hashlib.shake_128(rho_ntt + bytes([0, 0])).digest(840)
+    prf = hashlib.shake_256(sigma_ntt + bytes([0])).digest(128)
+    with open(os.path.join(kat, "samp_ntt_in.txt"), "w") as f:
+        for b in xof:
+            f.write("%02x\n" % b)
+    with open(os.path.join(kat, "samp_ntt_out.txt"), "w") as f:
+        for c in sample_ntt(rho_ntt, 0, 0):
+            f.write("%03x\n" % c)
+    with open(os.path.join(kat, "samp_cbd_in.txt"), "w") as f:
+        for b in prf:
+            f.write("%02x\n" % b)
+    with open(os.path.join(kat, "samp_cbd_out.txt"), "w") as f:
+        for c in cbd(prf, 2):
+            f.write("%03x\n" % c)
+    print("wrote kat/samp_*.txt sampling vectors")
+
     print("sizes: pk=%d dk=%d ct=%d ss=%d" % (len(ek), len(dk), len(ct), len(ss)))
     print("roundtrip decaps(encaps):", ss == ss_d)
 
