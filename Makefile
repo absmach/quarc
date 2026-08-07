@@ -69,6 +69,13 @@ sim-drbg: $(KAT_VEC)
 sim-ntt: $(KAT_VEC)
 kat-ntt: sim-ntt
 
+# ML-KEM polynomial generation (SHAKE -> SampleNTT/CBD), keccak c2 client
+sim-shake-sampler: $(KAT_VEC)
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_shake_sampler.vvp \
+		rtl/keccak.v rtl/keccak_engine.v rtl/sha3.v rtl/sampling.v rtl/shake_sampler.v \
+		tb/tb_shake_sampler.sv -s tb_shake_sampler
+	vvp build/sim_shake_sampler.vvp
+
 # ML-KEM sampling datapath (SampleNTT + CBD)
 sim-sampling: $(KAT_VEC)
 	iverilog -g2012 -D QUARC_SIM -o build/sim_sampling.vvp rtl/sampling.v tb/tb_sampling.sv -s tb_sampling

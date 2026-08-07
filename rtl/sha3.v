@@ -17,7 +17,9 @@
 `default_nettype none
 `timescale 1ns/1ps
 
-module sha3 (
+module sha3 #(
+    parameter integer OUT_MAX = 256          // output buffer bytes (>= max squeeze_len)
+) (
     input  wire        clk,
     input  wire        rst_n,
     // Bus interface (base 0x1000_0000)
@@ -47,7 +49,6 @@ module sha3 (
     localparam [2:0] SQUEEZE_PERMUTE = 3'd5;
 
     localparam [9:0] MSG_MAX  = 10'd512;
-    localparam [9:0] OUT_MAX  = 10'd256;
 
     // ------------------------------------------------------------------
     // Registers / signals
@@ -72,7 +73,7 @@ module sha3 (
     // reads so yosys maps them to ECP5 block RAM (EBR) instead of thousands
     // of flip-flops and wide muxes (which congested place-and-route).
     reg [31:0]  msg_mem [0:MSG_MAX/4 - 1];   // 128 x 32 = 512 bytes
-    reg [31:0]  out_mem [0:OUT_MAX/4 - 1];   // 64  x 32 = 256 bytes
+    reg [31:0]  out_mem [0:OUT_MAX/4 - 1];   // output buffer
     reg [31:0]  msg_wrd_q;                   // pre-read absorb word
     reg [31:0]  out_wrd_q;                   // registered DATA_OUT word
 
@@ -186,7 +187,7 @@ module sha3 (
             // synchronous DATA_OUT read (RAM): capture the word on request,
             // serve it on the bus's rvalid cycle.
             if (bus_req && !bus_we && bus_addr == 8'h10)
-                out_wrd_q <= out_mem[out_rd[7:2]];
+                out_wrd_q <= out_mem[out_rd[9:2]];
 
             // ---- bus writes ----
             if (bus_req && bus_we) begin
@@ -297,7 +298,7 @@ module sha3 (
                         end else if ((out_pos % rate) == rate - 4) begin
                             // last word of this block: write it, then permute
                             // for the next block if more output is needed
-                            out_mem[out_pos[8:2]] <=
+                            out_mem[out_pos[9:2]] <=
                                 {state[8*(out_pos % rate + 3) +: 8],
                                  state[8*(out_pos % rate + 2) +: 8],
                                  state[8*(out_pos % rate + 1) +: 8],
@@ -308,7 +309,7 @@ module sha3 (
                                 fsm      <= SQUEEZE_PERMUTE;
                             end
                         end else begin
-                            out_mem[out_pos[8:2]] <=
+                            out_mem[out_pos[9:2]] <=
                                 {state[8*(out_pos % rate + 3) +: 8],
                                  state[8*(out_pos % rate + 2) +: 8],
                                  state[8*(out_pos % rate + 1) +: 8],
