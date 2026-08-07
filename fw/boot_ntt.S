@@ -5,6 +5,8 @@
 
     .section .text.init
     .globl _start
+    // Ibex boots at boot_addr[31:8]||0x80 == 0x80.
+    .org 0x80
 
 #define NTT_BASE    0x10000800
 #define NTT_CTRL    0x00

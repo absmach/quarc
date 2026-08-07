@@ -105,6 +105,7 @@ quarc/
 │   ├── top.v              # SoC top-level
 │   ├── bus.v              # Wishbone-lite bus + address decoder
 │   ├── boot_rom.v         # Immutable boot ROM
+│   ├── data_ram.v         # 16 KiB Data RAM (0x0001_4000)
 │   ├── keccak.v           # Keccak-f[1600] permutation
 │   ├── keccak_engine.v    # Shared permutation engine (SHA-3 + DRBG clients)
 │   ├── sha3.v             # SHA-3/SHAKE wrapper

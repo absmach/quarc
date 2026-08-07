@@ -107,6 +107,7 @@ module quarc_bus (
     wire trng_sel        = data_crypto_sel && (data_addr[15:8] == 8'h05) && (data_addr[7:5] == 3'b000);
     wire drbg_sel        = data_crypto_sel && (data_addr[15:8] == 8'h05) && (data_addr[7:5] == 3'b001);
     wire ntt_sel         = data_crypto_sel && (data_addr[15:8] == 8'h08);
+    wire data_ram_sel    = (data_addr[31:16] == 16'h0001) && (data_addr[15:14] == 2'b01);
 
     // Local 8-bit register offset for each peripheral
     wire [7:0] periph_addr = data_addr[7:0];
@@ -252,6 +253,22 @@ module quarc_bus (
         .c1_state_out(drbg_perm_state_out)
     );
 
+    // ── Data RAM (0x0001_4000, 16 KiB) ────────────────────────────────────────
+    wire        ram_rvalid;
+    wire [31:0] ram_rdata;
+
+    data_ram u_data_ram (
+        .clk    (clk),
+        .rst_n  (rst_n),
+        .req    (data_req && data_ram_sel),
+        .we     (data_we),
+        .be     (data_be),
+        .addr   (data_addr),
+        .wdata  (data_wdata),
+        .rvalid (ram_rvalid),
+        .rdata  (ram_rdata)
+    );
+
     // ── SPI slave (stub for Phase 0) ─────────────────────────────────────────
     // Tie outputs so the pins are driven; module gets implemented in Phase 7.
     assign spi_miso = 1'b0;
@@ -259,7 +276,7 @@ module quarc_bus (
 
     // ── Data response mux ────────────────────────────────────────────────────
     // Latch which device responded so we can mux rdata one cycle later.
-    reg uart_sel_q, timer_sel_q, spi_sel_q, sha3_sel_q, trng_sel_q, drbg_sel_q, ntt_sel_q, unmapped_q, was_read_q;
+    reg uart_sel_q, timer_sel_q, spi_sel_q, sha3_sel_q, trng_sel_q, drbg_sel_q, ntt_sel_q, ram_sel_q, unmapped_q, was_read_q;
     always @(posedge clk) begin
         if (!rst_n) begin
             uart_sel_q  <= 1'b0;
@@ -269,6 +286,7 @@ module quarc_bus (
             trng_sel_q  <= 1'b0;
             drbg_sel_q  <= 1'b0;
             ntt_sel_q   <= 1'b0;
+            ram_sel_q   <= 1'b0;
             unmapped_q  <= 1'b0;
             was_read_q  <= 1'b0;
         end else if (data_req) begin
@@ -279,7 +297,8 @@ module quarc_bus (
             trng_sel_q  <= trng_sel;
             drbg_sel_q  <= drbg_sel;
             ntt_sel_q   <= ntt_sel;
-            unmapped_q  <= !data_periph_sel && !data_crypto_sel;
+            ram_sel_q   <= data_ram_sel;
+            unmapped_q  <= !data_periph_sel && !data_crypto_sel && !data_ram_sel;
             was_read_q  <= !data_we;
         end else begin
             uart_sel_q  <= 1'b0;
@@ -289,6 +308,7 @@ module quarc_bus (
             trng_sel_q  <= 1'b0;
             drbg_sel_q  <= 1'b0;
             ntt_sel_q   <= 1'b0;
+            ram_sel_q   <= 1'b0;
             unmapped_q  <= 1'b0;
             was_read_q  <= 1'b0;
         end
@@ -315,6 +335,8 @@ module quarc_bus (
             data_rdata = drbg_rdata;
         else if (ntt_sel_q && was_read_q)
             data_rdata = ntt_rdata;
+        else if (ram_sel_q && was_read_q)
+            data_rdata = ram_rdata;
         else if (spi_sel_q && was_read_q)
             data_rdata = 32'h0; // stub
         else

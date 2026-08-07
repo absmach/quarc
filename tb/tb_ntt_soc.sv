@@ -96,4 +96,12 @@ module tb_ntt_soc;
         $finish;
     end
 
+    integer cyc = 0;
+    always @(posedge clk) begin
+        cyc = cyc + 1;
+        if (cyc >= 32 && cyc < 48)
+            $display("[%0t] cyc=%0d ifetch addr=%08x req=%b rvalid=%b", $time, cyc,
+                     dut.u_bus.instr_addr, dut.u_bus.instr_req, dut.u_bus.instr_rvalid);
+    end
+
 endmodule
