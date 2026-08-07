@@ -160,7 +160,7 @@ quarc/
 0x0001_4000  16KB   Data RAM         RW   PMP Region 2 (locked)
 0x0002_0000   4KB   Key store        ---  PMP Region 3 (NO ACCESS from firmware)
 0x1000_0000  256B   Keccak/SHAKE MMIO     PMP Region 4
-0x1000_0100  256B   NTT MMIO
+0x1000_0800  256B   NTT MMIO
 0x1000_0200  256B   ML-KEM MMIO
 0x1000_0300  256B   ML-DSA MMIO
 0x1000_0400  256B   KUE MMIO
@@ -303,7 +303,7 @@ Status legend: 🟢 verified · 🟡 code complete, awaiting verification · �
 | 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | 🟢 sim + synth + PnR verified (26.9 MHz)                                           |
 | 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | 🟢 72/72 KAT, formal BMC, bus-wired, firmware self-test passes                     |
 | 2 — Entropy         | TRNG + SHAKE-256 DRBG                  | SP 800-22 pass + DRBG KAT               | 🟢 RCT/APT health, formal BMC, DRBG KAT, SoC firmware test, SP 800-22 17/17 PASS |
-| 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | 🟡 shared engine done: fwd/inv/basemul, KAT 4/4, 2.5k LUTs; formal pending |
+| 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | 🟢 bus-wired, firmware round-trip passes, KAT 4/4, 2.5k LUTs; formal pending   |
 | 4 — ML-KEM          | ML-KEM-768 + KUE integration           | 100% FIPS 203 KAT + KUE rejection tests | ⚪ not started                                                                     |
 | 5 — ML-DSA          | ML-DSA-65 + hardware rejection sampler | 100% FIPS 204 KAT + timing at 50 MHz    | ⚪ not started                                                                     |
 | 6 — Security Policy | KUE, PMP, lifecycle, rollback formal   | All 6 SymbiYosys proofs pass            | ⚪ not started                                                                     |

@@ -77,11 +77,15 @@ sp80022: drbg-collect
 # the UART for "SHA3 OK".
 FW_SHA3_HEX := fw/boot_sha3.hex
 FW_ENTROPY_HEX := fw/boot_entropy.hex
+FW_NTT_HEX := fw/boot_ntt.hex
 
 $(FW_SHA3_HEX): fw/boot_sha3.S fw/link.ld
 	$(MAKE) -C fw
 
 $(FW_ENTROPY_HEX): fw/boot_entropy.S fw/link.ld
+	$(MAKE) -C fw
+
+$(FW_NTT_HEX): fw/boot_ntt.S fw/link.ld
 	$(MAKE) -C fw
 
 sim-sha3-soc: $(IBEX_V) $(FW_SHA3_HEX)
@@ -91,6 +95,10 @@ sim-sha3-soc: $(IBEX_V) $(FW_SHA3_HEX)
 sim-entropy-soc: $(IBEX_V) $(FW_ENTROPY_HEX)
 	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_entropy_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_entropy_soc.sv -s tb_entropy_soc
 	vvp build/sim_entropy_soc.vvp
+
+sim-ntt-soc: $(IBEX_V) $(FW_NTT_HEX)
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_ntt_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_ntt_soc.sv -s tb_ntt_soc
+	vvp build/sim_ntt_soc.vvp
 
 synth: $(IBEX_V)
 	yosys -p "read_verilog -I rtl $(ALL_SRCS); synth_ecp5 -abc9 -top quarc_top -json build/quarc.json" 2>&1 | tee build/synth.log
