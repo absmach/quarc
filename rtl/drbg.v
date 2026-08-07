@@ -29,13 +29,20 @@ module drbg (
     input  wire [31:0] bus_wdata,
     output reg  [31:0] bus_rdata,
     output reg         bus_ack,
-    output wire        irq_done
+    output wire        irq_done,
+
+    // Shared Keccak engine (client 1)
+    output reg             perm_req,
+    output wire [1599:0]   perm_state_in,
+    input  wire            perm_done,
+    input  wire [1599:0]   perm_state_out
 );
 
-    localparam [2:0] IDLE   = 3'd0;
-    localparam [2:0] ABSORB = 3'd1;
-    localparam [2:0] PERMUTE= 3'd2;
-    localparam [2:0] OUTPUT = 3'd3;
+    localparam [2:0] IDLE     = 3'd0;
+    localparam [2:0] ABSORB   = 3'd1;
+    localparam [2:0] PERM_REQ = 3'd2;
+    localparam [2:0] PERMUTE  = 3'd3;
+    localparam [2:0] OUTPUT   = 3'd4;
 
     localparam [31:0] RESEED_LIMIT = 32'd1000;
 
@@ -44,29 +51,21 @@ module drbg (
     reg [255:0]  entropy_reg;
     reg [2:0]    ent_wr;        // entropy word write pointer
     reg [31:0]   reseed_cnt;
-    reg [7:0]    out_buf [0:135];
+    reg [31:0]   out_mem [0:33];   // 34 x 32 = 136 bytes (EBR)
+    reg [7:0]    ow;                // output word fill counter
+    reg [7:0]    nwords;
     reg [7:0]    out_rd;
     reg [7:0]    byte_count;
     reg          reseed_phase;
     reg          ready, done, reseed_needed, halted;
 
-    // sponge + keccak
+    // sponge
     reg [1599:0] sponge;
-    reg          permute_start;
-    wire         permute_done;
-    wire [1599:0] sponge_nxt;
+    assign perm_state_in = sponge;   // shared engine captures at request
 
     // one-cycle command pulses
     reg          gen_req, reseed_req, soft_reset;
     reg          read_out_q;    // delayed DRBG_OUT read (bus latency)
-
-    keccak_f1600 u_keccak (
-        .clk(clk), .rst_n(rst_n),
-        .start(permute_start),
-        .state_in(sponge),
-        .state_out(sponge_nxt),
-        .done(permute_done)
-    );
 
     // absorb input: state (or state^entropy for reseed), then pad
     // byte 32 |= 0x1F, byte 135 |= 0x80 (SHAKE-256, rate 136)
@@ -93,7 +92,7 @@ module drbg (
             reseed_needed <= 1'b0;
             halted        <= 1'b0;
             sponge        <= 1600'b0;
-            permute_start <= 1'b0;
+            perm_req      <= 1'b0;
             gen_req       <= 1'b0;
             reseed_req    <= 1'b0;
             soft_reset    <= 1'b0;
@@ -136,7 +135,7 @@ module drbg (
                 reseed_needed <= 1'b0;
                 halted        <= 1'b0;
                 sponge        <= 1600'b0;
-                permute_start <= 1'b0;
+                perm_req      <= 1'b0;
             end else begin
                 case (fsm)
                     IDLE: begin
@@ -162,15 +161,23 @@ module drbg (
                     end
 
                     ABSORB: begin
-                        sponge        <= sponge_abs;
-                        permute_start <= 1'b1;
-                        fsm           <= PERMUTE;
+                        sponge <= sponge_abs;
+                        fsm    <= PERM_REQ;
+                    end
+
+                    PERM_REQ: begin
+                        // request the permutation; `sponge` now holds the
+                        // absorbed+pad input, captured by the shared engine
+                        perm_req <= 1'b1;
+                        fsm      <= PERMUTE;
                     end
 
                     PERMUTE: begin
-                        permute_start <= 1'b0;
-                        if (permute_done) begin
-                            sponge <= sponge_nxt;
+                        perm_req <= 1'b0;
+                        if (perm_done) begin
+                            sponge <= perm_state_out;
+                            ow     <= 8'd0;
+                            nwords <= (byte_count + 8'd3) >> 2;
                             fsm    <= OUTPUT;
                         end
                     end
@@ -183,13 +190,20 @@ module drbg (
                             halted        <= 1'b0;
                             done          <= 1'b1;
                             fsm           <= IDLE;
-                        end else begin
+                        end else if (ow >= nwords) begin
                             drbg_state <= sponge[511:256];
                             reseed_cnt <= reseed_cnt + 32'd1;
                             if (reseed_cnt + 32'd1 >= RESEED_LIMIT)
                                 reseed_needed <= 1'b1;
                             done <= 1'b1;
                             fsm  <= IDLE;
+                        end else begin
+                            // one 32-bit output word per cycle (EBR write)
+                            out_mem[ow] <= {sponge[8*(4*ow+3)+:8],
+                                            sponge[8*(4*ow+2)+:8],
+                                            sponge[8*(4*ow+1)+:8],
+                                            sponge[8*(4*ow)+:8]};
+                            ow <= ow + 8'd1;
                         end
                     end
 
@@ -200,29 +214,13 @@ module drbg (
     end
 
     // ------------------------------------------------------------------
-    // Output buffer: fixed-position copies from the sponge (no muxes).
-    // ------------------------------------------------------------------
-    genvar gox;
-    generate
-        for (gox = 0; gox < 136; gox = gox + 1) begin : g_out
-            always @(posedge clk) begin
-                if (!rst_n)
-                    out_buf[gox] <= 8'h00;
-                else if (fsm == OUTPUT && !reseed_phase && gox < byte_count)
-                    out_buf[gox] <= sponge[8*gox +: 8];
-            end
-        end
-    endgenerate
-
-    // ------------------------------------------------------------------
     // Bus interface
     // ------------------------------------------------------------------
     reg [31:0] out_wrd_q;
     always @(posedge clk) begin
         if (!rst_n) out_wrd_q <= 32'h0;
         else if (bus_req && !bus_we && bus_addr == 8'h28)
-            out_wrd_q <= {out_buf[out_rd+3], out_buf[out_rd+2],
-                          out_buf[out_rd+1], out_buf[out_rd]};
+            out_wrd_q <= out_mem[out_rd[7:2]];
     end
 
     always @(*) begin

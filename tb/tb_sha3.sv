@@ -19,6 +19,11 @@ module tb_sha3;
     wire        bus_ack;
     wire        irq_done;
 
+    wire        perm_req;
+    wire [1599:0] perm_state_in;
+    wire        perm_done;
+    wire [1599:0] perm_state_out;
+
     sha3 dut (
         .clk      (clk),
         .rst_n    (rst_n),
@@ -28,7 +33,18 @@ module tb_sha3;
         .bus_wdata(bus_wdata),
         .bus_rdata(bus_rdata),
         .bus_ack  (bus_ack),
-        .irq_done (irq_done)
+        .irq_done (irq_done),
+        .perm_req      (perm_req),
+        .perm_state_in (perm_state_in),
+        .perm_done     (perm_done),
+        .perm_state_out(perm_state_out)
+    );
+
+    keccak_engine u_keccak (
+        .clk(clk), .rst_n(rst_n),
+        .c0_req(perm_req), .c0_state_in(perm_state_in),
+        .c0_done(perm_done), .c0_state_out(perm_state_out),
+        .c1_req(1'b0), .c1_state_in(1600'b0), .c1_done(), .c1_state_out()
     );
 
     reg [7:0]  msg_bytes [0:255];

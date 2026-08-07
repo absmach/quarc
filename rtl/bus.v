@@ -150,6 +150,12 @@ module quarc_bus (
 
     assign irq_timer    = timer_irq;
 
+    // Shared Keccak engine client wires (declared before use)
+    wire             sha3_perm_req, drbg_perm_req;
+    wire [1599:0]    sha3_perm_state_in, drbg_perm_state_in;
+    wire             sha3_perm_done, drbg_perm_done;
+    wire [1599:0]    sha3_perm_state_out, drbg_perm_state_out;
+
     // ── SHA-3 / SHAKE (base 0x1000_0000) ─────────────────────────────────────
     wire        sha3_ack;
     wire [31:0] sha3_rdata;
@@ -164,7 +170,11 @@ module quarc_bus (
         .bus_wdata (data_wdata),
         .bus_rdata (sha3_rdata),
         .bus_ack   (sha3_ack),
-        .irq_done  (sha3_irq)
+        .irq_done  (sha3_irq),
+        .perm_req       (sha3_perm_req),
+        .perm_state_in  (sha3_perm_state_in),
+        .perm_done      (sha3_perm_done),
+        .perm_state_out (sha3_perm_state_out)
     );
 
     // ── TRNG (base 0x1000_0500) ──────────────────────────────────────────────
@@ -200,10 +210,28 @@ module quarc_bus (
         .bus_wdata (data_wdata),
         .bus_rdata (drbg_rdata),
         .bus_ack   (drbg_ack),
-        .irq_done  (drbg_irq)
+        .irq_done  (drbg_irq),
+        .perm_req       (drbg_perm_req),
+        .perm_state_in  (drbg_perm_state_in),
+        .perm_done      (drbg_perm_done),
+        .perm_state_out (drbg_perm_state_out)
     );
 
     assign irq_external = uart_irq | sha3_irq | trng_irq | drbg_irq;
+
+    // ── Shared Keccak engine (client 0 = SHA-3, client 1 = DRBG) ─────────────
+    keccak_engine u_keccak (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .c0_req      (sha3_perm_req),
+        .c0_state_in (sha3_perm_state_in),
+        .c0_done     (sha3_perm_done),
+        .c0_state_out(sha3_perm_state_out),
+        .c1_req      (drbg_perm_req),
+        .c1_state_in (drbg_perm_state_in),
+        .c1_done     (drbg_perm_done),
+        .c1_state_out(drbg_perm_state_out)
+    );
 
     // ── SPI slave (stub for Phase 0) ─────────────────────────────────────────
     // Tie outputs so the pins are driven; module gets implemented in Phase 7.

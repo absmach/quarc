@@ -28,7 +28,12 @@ module sha3 (
     output reg  [31:0] bus_rdata,
     output reg         bus_ack,
     // Interrupt
-    output wire        irq_done
+    output wire        irq_done,
+    // Shared Keccak engine (client 0)
+    output reg             perm_req,
+    output wire [1599:0]   perm_state_in,
+    input  wire            perm_done,
+    input  wire [1599:0]   perm_state_out
 );
 
     // ------------------------------------------------------------------
@@ -36,9 +41,10 @@ module sha3 (
     // ------------------------------------------------------------------
     localparam [2:0] IDLE            = 3'd0;
     localparam [2:0] ABSORB          = 3'd1;
-    localparam [2:0] ABSORB_PERMUTE  = 3'd2;
-    localparam [2:0] SQUEEZE         = 3'd3;
-    localparam [2:0] SQUEEZE_PERMUTE = 3'd4;
+    localparam [2:0] ABSORB_REQ      = 3'd2;
+    localparam [2:0] ABSORB_PERMUTE  = 3'd3;
+    localparam [2:0] SQUEEZE         = 3'd4;
+    localparam [2:0] SQUEEZE_PERMUTE = 3'd5;
 
     localparam [9:0] MSG_MAX  = 10'd512;
     localparam [9:0] OUT_MAX  = 10'd256;
@@ -60,9 +66,7 @@ module sha3 (
     reg [9:0]   out_rd;         // DATA_OUT buffer read pointer (bytes)
 
     reg [1599:0] state;
-    reg         permute_start;
-    wire        permute_done;
-    wire [1599:0] state_nxt;
+    assign perm_state_in = state;   // shared engine captures at request
 
     // Message and output buffers as word-addressed RAMs with synchronous
     // reads so yosys maps them to ECP5 block RAM (EBR) instead of thousands
@@ -120,16 +124,10 @@ module sha3 (
     wire [6:0]  msg_rd_w  = (gpos_next < 12'd512) ? gpos_next[8:2] : 7'd127;
 
     // ------------------------------------------------------------------
-    // Keccak-f[1600] permutation
     // ------------------------------------------------------------------
-    keccak_f1600 u_keccak (
-        .clk      (clk),
-        .rst_n    (rst_n),
-        .start    (permute_start),
-        .state_in (state),
-        .state_out(state_nxt),
-        .done     (permute_done)
-    );
+    // Shared Keccak engine: permutation is requested via perm_req and the
+    // result arrives on perm_done / perm_state_out (client 0).
+    // ------------------------------------------------------------------
 
     // ------------------------------------------------------------------
     // Bus interface
@@ -164,7 +162,7 @@ module sha3 (
             msg_wr          <= 10'd0;
             out_rd          <= 10'd0;
             state           <= 1600'b0;
-            permute_start   <= 1'b0;
+            perm_req        <= 1'b0;
             msg_wrd_q       <= 32'h0;
             out_wrd_q       <= 32'h0;
             ready           <= 1'b1;
@@ -219,7 +217,7 @@ module sha3 (
                 msg_wr        <= 10'd0;
                 out_rd        <= 10'd0;
                 state         <= 1600'b0;
-                permute_start <= 1'b0;
+                perm_req <= 1'b0;
                 msg_wrd_q     <= 32'h0;
                 out_wrd_q     <= 32'h0;
                 ready         <= 1'b1;
@@ -264,18 +262,24 @@ module sha3 (
                         state <= state ^ absorb_mask;
                         msg_wrd_q       <= msg_mem[msg_rd_w];
                         if (j == rate - 1) begin
-                            j             <= 9'd0;
-                            permute_start <= 1'b1;
-                            fsm           <= ABSORB_PERMUTE;
+                            j    <= 9'd0;
+                            fsm  <= ABSORB_REQ;
                         end else begin
                             j <= j + 1;
                         end
                     end
 
+                    ABSORB_REQ: begin
+                        // request the permutation; `state` is now the fully
+                        // XORed block, captured by the shared engine
+                        perm_req <= 1'b1;
+                        fsm      <= ABSORB_PERMUTE;
+                    end
+
                     ABSORB_PERMUTE: begin
-                        permute_start <= 1'b0;
-                        if (permute_done) begin
-                            state <= state_nxt;
+                        perm_req <= 1'b0;
+                        if (perm_done) begin
+                            state <= perm_state_out;
                             if (b == nblocks - 1) begin
                                 absorb_done <= 1'b1;
                                 fsm         <= IDLE;
@@ -300,8 +304,8 @@ module sha3 (
                                  state[8*(out_pos % rate + 0) +: 8]};
                             out_pos <= out_pos + 4;
                             if (out_pos + 4 < squeeze_len) begin
-                                permute_start <= 1'b1;
-                                fsm           <= SQUEEZE_PERMUTE;
+                                perm_req <= 1'b1;
+                                fsm      <= SQUEEZE_PERMUTE;
                             end
                         end else begin
                             out_mem[out_pos[8:2]] <=
@@ -314,9 +318,9 @@ module sha3 (
                     end
 
                     SQUEEZE_PERMUTE: begin
-                        permute_start <= 1'b0;
-                        if (permute_done) begin
-                            state <= state_nxt;
+                        perm_req <= 1'b0;
+                        if (perm_done) begin
+                            state <= perm_state_out;
                             fsm   <= SQUEEZE;
                         end
                     end

@@ -3,10 +3,10 @@ IBEX_SV    := $(filter-out ibex/rtl/ibex_tracer.sv ibex/rtl/ibex_tracer_pkg.sv \
 IBEX_PRIM  := ibex/vendor/lowrisc_ip/ip/prim
 IBEX_PKG   := $(wildcard $(IBEX_PRIM)/rtl/*pkg.sv) $(wildcard $(IBEX_PRIM)_generic/rtl/*pkg.sv)
 IBEX_V     := build/ibex.v
-QUARC_SRCS := rtl/top.v rtl/bus.v rtl/boot_rom.v rtl/keccak.v rtl/sha3.v \
-              rtl/ntt.v rtl/mlkem.v rtl/mldsa.v rtl/trng.v rtl/drbg.v \
-              rtl/kue.v rtl/keystore.v rtl/lifecycle.v rtl/rollback.v \
-              rtl/spi_slave.v rtl/uart.v rtl/timer.v
+QUARC_SRCS := rtl/top.v rtl/bus.v rtl/boot_rom.v rtl/keccak.v rtl/keccak_engine.v rtl/sha3.v \
+               rtl/ntt.v rtl/mlkem.v rtl/mldsa.v rtl/trng.v rtl/drbg.v \
+               rtl/kue.v rtl/keystore.v rtl/lifecycle.v rtl/rollback.v \
+               rtl/spi_slave.v rtl/uart.v rtl/timer.v
 ALL_SRCS   := $(IBEX_V) $(QUARC_SRCS)
 TB_SRCS    := $(wildcard tb/*.sv)
 
@@ -40,7 +40,7 @@ sim: $(IBEX_V) $(FW_HEX)
 
 sim-%: $(IBEX_V)
 	iverilog -g2012 -D QUARC_SIM -o build/sim_$*.vvp $(IBEX_V) \
-		$(if $(filter keccak,$*),,rtl/keccak.v) rtl/$*.v tb/tb_$*.sv -s tb_$*
+		$(if $(filter keccak,$*),,rtl/keccak.v rtl/keccak_engine.v) rtl/$*.v tb/tb_$*.sv -s tb_$*
 	vvp build/sim_$*.vvp
 
 # tb_keccak reads reference permutation vectors from kat/

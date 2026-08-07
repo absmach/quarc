@@ -16,7 +16,7 @@ module keccak_f1600 (
     input  wire           rst_n,
     input  wire           start,        // Pulse to begin permutation
     input  wire  [1599:0] state_in,     // Full 1600-bit state input
-    output reg   [1599:0] state_out,    // Full 1600-bit state output
+    output wire  [1599:0] state_out,   // Full 1600-bit state output
     output reg            done          // Pulse when permutation complete
 );
 
@@ -172,7 +172,6 @@ module keccak_f1600 (
             state_r   <= 1600'b0;
             round_r   <= 5'd0;
             busy      <= 1'b0;
-            state_out <= 1600'b0;
             done      <= 1'b0;
         end else if (start) begin
             state_r   <= state_in;
@@ -181,7 +180,6 @@ module keccak_f1600 (
             done      <= 1'b0;
         end else if (busy) begin
             state_r   <= next_state;
-            state_out <= next_state;
             if (round_r == (NUM_ROUNDS - 5'd1)) begin
                 busy <= 1'b0;
                 done <= 1'b1;
@@ -192,6 +190,10 @@ module keccak_f1600 (
             done <= 1'b0;
         end
     end
+
+    // state_out is the final permutation result; `state_r` holds it once
+    // `done` pulses and does not change afterwards.
+    assign state_out = state_r;
 
     // ------------------------------------------------------------------
     // Formal properties (SymbiYosys)

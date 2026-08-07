@@ -57,31 +57,38 @@ Host MCU (STM32 / ESP32)
 │  Ibex RV32IMC  ←→  Wishbone-lite bus (~200 lines)  │
 │       │                                            │
 │  [Crypto]           [Memory]       [Peripherals]   │
-│  Keccak/SHAKE       IRAM (BRAM)    SPI slave        │
-│  NTT engine (shared) DRAM (BRAM)  UART (dev only)  │
-│  ML-KEM-768 ctrl    Boot ROM       Timer/WDT        │
-│  ML-DSA-65 ctrl     Key store ◄── DMA only         │
-│  TRNG + DRBG        (BRAM)         Lifecycle reg    │
-│  Key Usage Enforcer  Rollback ctr  GPIO             │
+│  Keccak engine      IRAM (BRAM)    SPI slave        │
+│   (shared: SHA-3,   DRAM (BRAM)   UART (dev only)  │
+│    DRBG, later      Boot ROM       Timer/WDT        │
+│    ML-KEM/DSA)      Key store ◄── DMA only         │
+│  NTT engine (shared) (BRAM)        Lifecycle reg    │
+│  ML-KEM-768 ctrl     Rollback ctr  GPIO             │
+│  ML-DSA-65 ctrl                                     │
+│  TRNG + DRBG                                        │
+│  Key Usage Enforcer                                 │
 └────────────────────────────────────────────────────┘
 ```
 
 **Key invariant:** Firmware never reads key bytes. The Key Usage Enforcer (KUE) DMA's key material directly from the key store into crypto engine internal registers. PMP Region 3 blocks all firmware access to the key store at the hardware level.
 
-### Module LUT Budget (ECP5-85K target)
+### Module LUT Budget (measured, ECP5-85K)
 
-| Module                                    | Est. LUTs                 |
-| ----------------------------------------- | ------------------------- |
-| Ibex RV32IMC (via sv2v)                   | ~3,500                    |
-| Keccak/SHAKE engine                       | ~1,500                    |
-| NTT engine (shared, parameterised)        | ~3,000                    |
-| ML-KEM-768 controller                     | ~1,500                    |
-| ML-DSA-65 controller                      | ~2,000                    |
-| Key Usage Enforcer                        | ~200                      |
-| TRNG + DRBG                               | ~500                      |
-| SPI slave                                 | ~400                      |
-| Bus, lifecycle, rollback, boot ROM, timer | ~750                      |
-| **Total**                                 | **~13,700 / 84,000 LUTs** |
+All crypto blocks share **one** Keccak-f[1600] engine (`rtl/keccak_engine.v`), which dominates the crypto area.
+
+| Module                              | Measured LUTs |
+| ----------------------------------- | ------------- |
+| Ibex RV32IMC + bus/UART/timer/ROM   | ~7,800        |
+| Keccak-f[1600] (full 1600-bit round)| ~10,200       |
+| SHA-3 wrapper (client)              | ~4,200        |
+| DRBG wrapper (client)               | ~8,200        |
+| TRNG (health tests)                 | ~120          |
+| Shared-engine arbitration           | ~1,600        |
+| **Total (current, phase 1–2)**      | **~23,200 / 84,000 LUTs** |
+
+> Note: the original plan estimated ~1,500 LUTs for Keccak assuming a narrow/serial
+> datapath. The implemented full-width 1600-bit round is inherently ~10k LUTs. A
+> shared engine is what keeps the whole SoC at ~23k and under the 23k-LUT budget of
+> the BeagleV-Fire's PolarFire MPFS025T (target: `beaglev-fire`).
 
 ---
 
@@ -99,6 +106,7 @@ quarc/
 │   ├── bus.v              # Wishbone-lite bus + address decoder
 │   ├── boot_rom.v         # Immutable boot ROM
 │   ├── keccak.v           # Keccak-f[1600] permutation
+│   ├── keccak_engine.v    # Shared permutation engine (SHA-3 + DRBG clients)
 │   ├── sha3.v             # SHA-3/SHAKE wrapper
 │   ├── ntt.v              # Shared NTT/iNTT engine (q=3329, q=8380417)
 │   ├── mlkem.v            # ML-KEM-768 controller
@@ -355,6 +363,16 @@ Status legend: 🟢 verified · 🟡 code complete, awaiting verification · �
 - **v2 — Hardened SE:** PUF, real OTP/NVM, tamper detection, side-channel countermeasures (Boolean masking), SLH-DSA, Common Criteria EAL4+ path
 - **v3 — TEE Root of Trust:** PQC attestation for AMD SEV-SNP / Intel TDX / Arm CCA; sealing keys; PCIe/I3C interface
 - **ASIC:** No RTL rewrite required (P5 principle). 40nm or 22nm FD-SOI. FIPS 140-3 Level 3.
+
+### FPGA targets
+
+| Board | FPGA | Flow | Status |
+|-------|------|------|--------|
+| ULX3S | Lattice ECP5-85K (84k LUTs) | yosys + nextpnr-ecp5 + ecppack | Primary dev target; bitstream builds, 27 MHz |
+| BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins) | Planned — shared Keccak keeps design ~23.2k LUTs; needs Libero port + on-chip RISC-V AXI/SPI bridge |
+
+For the BeagleV-Fire, the SE runs in the PolarFire fabric and is driven by the SoC's own
+RISC-V cores (Linux) over an AXI/SPI bridge, replacing the external-MCU host of the ULX3S setup.
 
 ---
 
