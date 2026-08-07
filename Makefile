@@ -57,6 +57,12 @@ $(KAT_VEC): scripts/gen_kat.py scripts/gen_ntt_kat.py scripts/gen_mlkem_kat.py
 	python3 scripts/gen_mlkem_kat.py
 
 sim-keccak: $(KAT_VEC)
+
+# 3-client Keccak engine arbitration (SHA-3 / DRBG / ML-KEM)
+sim-keccak-c2: $(KAT_VEC)
+	iverilog -g2012 -D QUARC_SIM -o build/sim_keccak_c2.vvp \
+		rtl/keccak.v rtl/keccak_engine.v tb/tb_keccak_c2.sv -s tb_keccak_c2
+	vvp build/sim_keccak_c2.vvp
 sim-sha3: $(KAT_VEC)
 sim-drbg: $(KAT_VEC)
 sim-ntt: $(KAT_VEC)

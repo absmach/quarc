@@ -239,7 +239,7 @@ module quarc_bus (
         .irq_done  (ntt_irq)
     );
 
-    // ── Shared Keccak engine (client 0 = SHA-3, client 1 = DRBG) ─────────────
+    // ── Shared Keccak engine (client 0 = SHA-3, client 1 = DRBG, client 2 = ML-KEM) ─
     keccak_engine u_keccak (
         .clk        (clk),
         .rst_n      (rst_n),
@@ -250,7 +250,11 @@ module quarc_bus (
         .c1_req      (drbg_perm_req),
         .c1_state_in (drbg_perm_state_in),
         .c1_done     (drbg_perm_done),
-        .c1_state_out(drbg_perm_state_out)
+        .c1_state_out(drbg_perm_state_out),
+        .c2_req      (1'b0),
+        .c2_state_in (1600'b0),
+        .c2_done     (),
+        .c2_state_out()
     );
 
     // ── Data RAM (0x0001_4000, 16 KiB) ────────────────────────────────────────
