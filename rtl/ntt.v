@@ -22,14 +22,28 @@
 module ntt (
     input  wire        clk,
     input  wire        rst_n,
+    // MMIO port (CPU firmware)
     input  wire        bus_req,
     input  wire        bus_we,
     input  wire [7:0]  bus_addr,
     input  wire [31:0] bus_wdata,
     output reg  [31:0] bus_rdata,
     output wire        bus_ack,
+    // client port (ML-KEM controller) - same register interface
+    input  wire        c_req,
+    input  wire        c_we,
+    input  wire [7:0]  c_addr,
+    input  wire [31:0] c_wdata,
+    output reg  [31:0] c_rdata,
+    output wire        c_ack,
     output wire        irq_done
 );
+    // internal port mux (firmware MMIO has priority over the ML-KEM client)
+    wire        int_req   = bus_req | c_req;
+    wire        int_we    = bus_req ? bus_we   : c_we;
+    wire [7:0]  int_addr  = bus_req ? bus_addr : c_addr;
+    wire [31:0] int_wdata = bus_req ? bus_wdata : c_wdata;
+    wire        int_ack;
     localparam [11:0] Q     = 12'd3329;
     localparam [11:0] F_INV = 12'd3303;      // 128^-1 mod q
 
@@ -76,8 +90,8 @@ module ntt (
     reg [9:0]  wr_ptr;
     reg [9:0]  rd_ptr;
 
-    wire coeff_wr = bus_req && bus_we && (bus_addr == 8'h08);
-    wire coeff_rd = bus_req && !bus_we && (bus_addr == 8'h08);
+    wire coeff_wr = int_req && int_we && (int_addr == 8'h08);
+    wire coeff_rd = int_req && !int_we && (int_addr == 8'h08);
 
     // ---------------- work-item decode (combinational) ----------------
     wire [6:0] L  = widx[9:7];
@@ -339,7 +353,7 @@ module ntt (
     // ---------------- RAM write mux ----------------
     assign we = busy ? we_fsm : coeff_wr;
     assign wa = busy ? wa_fsm : wr_ptr;
-    assign wd = busy ? wd_fsm : bus_wdata[11:0];
+    assign wd = busy ? wd_fsm : int_wdata[11:0];
 
     // ---------------- bus interface ----------------
     reg [11:0] rd_data_q;
@@ -357,11 +371,11 @@ module ntt (
             read_coeff_q <= coeff_rd;
             if (coeff_rd) rd_data_q <= ram[rd_ptr];
             if (read_coeff_q) rd_ptr <= rd_ptr + 10'd1;
-            if (bus_req && bus_we) begin
-                case (bus_addr[7:0])
+            if (int_req && int_we) begin
+                case (int_addr[7:0])
                     8'h00: begin
-                        op_in  <= bus_wdata[2:0];
-                        go_r   <= bus_wdata[4];
+                        op_in  <= int_wdata[2:0];
+                        go_r   <= int_wdata[4];
                         wr_ptr <= 10'd0;
                         rd_ptr <= 10'd0;
                     end
@@ -372,6 +386,8 @@ module ntt (
         end
     end
 
+    // Read data is served combinationally per port; the requesting master holds
+    // its address through the rvalid/ack cycle, so no req-gating is needed.
     always @(*) begin
         bus_rdata = 32'h0;
         case (bus_addr[7:0])
@@ -380,8 +396,18 @@ module ntt (
             default: bus_rdata = 32'h0;
         endcase
     end
+    always @(*) begin
+        c_rdata = 32'h0;
+        case (c_addr[7:0])
+            8'h04: c_rdata = {30'b0, done, busy};
+            8'h08: c_rdata = {20'b0, rd_data_q};
+            default: c_rdata = 32'h0;
+        endcase
+    end
 
+    assign int_ack  = int_req;
     assign bus_ack  = bus_req;
+    assign c_ack    = c_req;
     assign irq_done = done;
 
 endmodule

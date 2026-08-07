@@ -43,8 +43,6 @@ module tb_ntt_soc;
     integer   rx_count = 0;
     integer   result = -1;   // 0 = FAIL, 1 = PASS
 
-    // No VCD dump: the 512x12 NTT RAM toggles too much for simulation speed.
-
     initial begin
         byte b;
         integer i;
@@ -58,8 +56,6 @@ module tb_ntt_soc;
             end
             rx_buf[rx_count % 16] = b;
             rx_count++;
-            $display("[%0t] uart byte %0d: 0x%02h '%s'", $time, rx_count, b,
-                     (b >= 8'h20 && b < 8'h7f) ? string'(b) : " ");
             // check for "NTT OK" or "NTT FAIL"
             if (rx_count >= 6 &&
                 rx_buf[(rx_count-6) % 16] == "N" &&
@@ -94,14 +90,6 @@ module tb_ntt_soc;
         if (result < 0)
             $display("[%0t] FAIL: timed out before NTT result", $time);
         $finish;
-    end
-
-    integer cyc = 0;
-    always @(posedge clk) begin
-        cyc = cyc + 1;
-        if (cyc >= 32 && cyc < 48)
-            $display("[%0t] cyc=%0d ifetch addr=%08x req=%b rvalid=%b", $time, cyc,
-                     dut.u_bus.instr_addr, dut.u_bus.instr_req, dut.u_bus.instr_rvalid);
     end
 
 endmodule

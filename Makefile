@@ -67,6 +67,12 @@ sim-sha3: $(KAT_VEC)
 sim-drbg: $(KAT_VEC)
 sim-ntt: $(KAT_VEC)
 kat-ntt: sim-ntt
+
+# NTT engine client port (driven by the ML-KEM controller)
+sim-ntt-c: $(KAT_VEC)
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_ntt_c.vvp \
+		rtl/keccak.v rtl/keccak_engine.v rtl/ntt.v tb/tb_ntt_c.sv -s tb_ntt_c
+	vvp build/sim_ntt_c.vvp
 kat-drbg: sim-drbg
 
 # collect a long DRBG bit stream for the SP 800-22 statistical suite

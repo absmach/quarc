@@ -299,17 +299,17 @@ make clean
 
 Status legend: 🟢 verified · 🟡 code complete, awaiting verification · 🔵 in progress · ⚪ not started
 
-| Phase               | Deliverable                            | Key Exit Gate                           | Status                                                                             |
-| ------------------- | -------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
-| 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | 🟢 sim + synth + PnR verified (26.9 MHz)                                           |
-| 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | 🟢 72/72 KAT, formal BMC, bus-wired, firmware self-test passes                     |
+| Phase               | Deliverable                            | Key Exit Gate                           | Status                                                                           |
+| ------------------- | -------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | 🟢 sim + synth + PnR verified (26.9 MHz)                                         |
+| 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | 🟢 72/72 KAT, formal BMC, bus-wired, firmware self-test passes                   |
 | 2 — Entropy         | TRNG + SHAKE-256 DRBG                  | SP 800-22 pass + DRBG KAT               | 🟢 RCT/APT health, formal BMC, DRBG KAT, SoC firmware test, SP 800-22 17/17 PASS |
-| 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | 🟢 bus-wired, firmware round-trip passes, KAT 4/4, 2.5k LUTs; formal pending   |
-| 4 — ML-KEM          | ML-KEM-768 + KUE integration           | 100% FIPS 203 KAT + KUE rejection tests | ⚪ not started                                                                     |
-| 5 — ML-DSA          | ML-DSA-65 + hardware rejection sampler | 100% FIPS 204 KAT + timing at 50 MHz    | ⚪ not started                                                                     |
-| 6 — Security Policy | KUE, PMP, lifecycle, rollback formal   | All 6 SymbiYosys proofs pass            | ⚪ not started                                                                     |
-| 7 — SPI + Channel   | Noise IK, AES-GCM, all 14 commands     | Encrypted session end-to-end            | ⚪ not started                                                                     |
-| 8 — Integration     | Secure boot, 24h soak, OTA demo        | All PRD v1.1 Section 9.5 criteria       | ⚪ not started                                                                     |
+| 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | 🟢 bus-wired, firmware round-trip passes, KAT 4/4, 2.5k LUTs; formal pending     |
+| 4 — ML-KEM          | ML-KEM-768 + KUE integration           | 100% FIPS 203 KAT + KUE rejection tests | ⚪ not started                                                                   |
+| 5 — ML-DSA          | ML-DSA-65 + hardware rejection sampler | 100% FIPS 204 KAT + timing at 50 MHz    | ⚪ not started                                                                   |
+| 6 — Security Policy | KUE, PMP, lifecycle, rollback formal   | All 6 SymbiYosys proofs pass            | ⚪ not started                                                                   |
+| 7 — SPI + Channel   | Noise IK, AES-GCM, all 14 commands     | Encrypted session end-to-end            | ⚪ not started                                                                   |
+| 8 — Integration     | Secure boot, 24h soak, OTA demo        | All PRD v1.1 Section 9.5 criteria       | ⚪ not started                                                                   |
 
 ---
 

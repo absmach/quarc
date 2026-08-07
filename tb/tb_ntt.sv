@@ -21,7 +21,9 @@ module tb_ntt;
         .clk(clk), .rst_n(rst_n),
         .bus_req(bus_req), .bus_we(bus_we),
         .bus_addr(bus_addr), .bus_wdata(bus_wdata),
-        .bus_rdata(bus_rdata), .bus_ack(bus_ack), .irq_done(irq_done)
+        .bus_rdata(bus_rdata), .bus_ack(bus_ack),
+        .c_req(1'b0), .c_we(1'b0), .c_addr(8'h0), .c_wdata(32'h0),
+        .c_rdata(), .c_ack(), .irq_done(irq_done)
     );
 
     integer failures = 0;

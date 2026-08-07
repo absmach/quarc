@@ -1,5 +1,7 @@
 # Quarc — Implementation Plan v1.0
+
 ## For Automated Coding Agent Execution
+
 ### PROPRIETARY & CONFIDENTIAL
 
 ---
@@ -7,12 +9,14 @@
 ## How to Use This Document
 
 This document is the single source of truth for implementing Quarc v1. Each task is:
+
 - **Self-contained** — has all information needed to implement it
 - **Ordered** — must be completed in the sequence given; later tasks depend on earlier ones
 - **Verifiable** — has exact acceptance criteria the agent can test autonomously
 - **Atomic** — one task = one logical unit of work
 
 **Rules for the agent:**
+
 1. Never start Task N+1 until Task N passes all acceptance criteria
 2. Never skip acceptance criteria — they exist to catch integration bugs early
 3. If a task is ambiguous, refer to the PRD (Quarc_PRD_v1.1.md) for the authoritative definition
@@ -214,6 +218,7 @@ git submodule add https://github.com/lowrisc/ibex ibex
 ```
 
 Create `.gitignore`:
+
 ```
 build/
 *.vvp
@@ -475,6 +480,7 @@ endmodule
 Create `rtl/bus.v` as a minimal stub that routes instruction fetches to Boot ROM and data accesses to UART and timer. Other peripherals return 0. This grows in each phase.
 
 The bus module must:
+
 - Route `instr_addr[31:16] == 16'h0000` → Boot ROM
 - Route `instr_addr[31:16] == 16'h0001` → IRAM
 - Route `data_addr[31:24] == 8'h20` → UART/Timer/Periph
@@ -499,10 +505,12 @@ Create `rtl/uart.v` — 8N1 UART transmitter and receiver.
 ```
 
 Parameters:
+
 - `CLK_FREQ` — default 25000000
 - `BAUD_RATE` — default 115200
 
 **Acceptance:**
+
 ```bash
 make sim-uart
 # Simulation must transmit "QUARC" and show correct waveform in GTKWave
@@ -571,6 +579,7 @@ endmodule
 Create `fw/boot_phase0.S` — minimal RISC-V assembly that prints a banner and loops. This is loaded into boot ROM for Phase 0 only.
 
 Compile with:
+
 ```bash
 riscv32-unknown-elf-gcc -march=rv32imc -mabi=ilp32 \
     -nostdlib -nostartfiles -T fw/link.ld \
@@ -579,6 +588,7 @@ riscv32-unknown-elf-objcopy -O ihex build/boot_phase0.elf fw/boot.hex
 ```
 
 **Phase 0 Acceptance Criteria:**
+
 ```
 [ ] make sim-top runs without error
 [ ] UART output in simulation shows "QUARC v0\r\n"
@@ -600,6 +610,7 @@ riscv32-unknown-elf-objcopy -O ihex build/boot_phase0.elf fw/boot.hex
 Create `rtl/keccak.v` implementing the Keccak-f[1600] permutation.
 
 **Interface:**
+
 ```verilog
 module keccak_f1600 (
     input  wire          clk,
@@ -612,6 +623,7 @@ module keccak_f1600 (
 ```
 
 **Requirements:**
+
 - Implement all 24 rounds of Keccak-f[1600]: theta, rho, pi, chi, iota
 - Round constants hardcoded as `parameter` array — no magic numbers
 - Iterative (one round per clock cycle) — 24 cycles per permutation
@@ -620,6 +632,7 @@ module keccak_f1600 (
 - All intermediate state in registers — no combinational paths between rounds
 
 **Round constants (iota step):**
+
 ```
 RC[0]  = 64'h0000000000000001    RC[12] = 64'h000000008000808B
 RC[1]  = 64'h0000000000008082    RC[13] = 64'h800000000000008B
@@ -644,6 +657,7 @@ RC[11] = 64'h000000008000000A    RC[23] = 64'h8000000080008008
 Create `rtl/sha3.v` — wraps `keccak_f1600` with padding, absorb/squeeze state machine, and memory-mapped register interface.
 
 **Interface:**
+
 ```verilog
 module sha3 (
     input  wire        clk,
@@ -661,17 +675,20 @@ module sha3 (
 ```
 
 **State machine:**
+
 ```
 IDLE → ABSORB (streaming input words) → PADDING → PERMUTE (24 cycles)
      → SQUEEZE (streaming output words) → IDLE
 ```
 
 **Padding rules:**
+
 - SHA3-256/512: pad with `0x06` then `0x80` at end of rate
 - SHAKE-128/256: pad with `0x1F` then `0x80` at end of rate
 - Rate (bytes): SHA3-256=136, SHA3-512=72, SHAKE-128=168, SHAKE-256=136
 
 **Acceptance:**
+
 ```bash
 make sim-sha3
 python3 scripts/run_kat.py --suite sha3
@@ -704,6 +721,7 @@ rtl/keccak.v
 ```
 
 Add to `rtl/keccak.v` — formal properties (inside `ifdef FORMAL` guards):
+
 ```verilog
 `ifdef FORMAL
     // done asserts exactly 24 cycles after start
@@ -725,6 +743,7 @@ Add to `rtl/keccak.v` — formal properties (inside `ifdef FORMAL` guards):
 ---
 
 ### Phase 1 Acceptance Criteria:
+
 ```
 [ ] make sim-sha3 passes — waveform shows correct absorb/squeeze sequence
 [ ] python3 scripts/run_kat.py --suite sha3 reports 100% PASS
@@ -744,6 +763,7 @@ Add to `rtl/keccak.v` — formal properties (inside `ifdef FORMAL` guards):
 Create `rtl/trng.v`.
 
 **Architecture:**
+
 - 4 independent ring oscillators (3-inverter loops)
 - XOR their outputs to produce raw bits
 - Sample at 1/64 of clock rate to ensure decorrelation
@@ -751,6 +771,7 @@ Create `rtl/trng.v`.
 - SP 800-90B health tests in RTL:
 
 **Repetition Count Test (RCT):**
+
 ```
 cutoff C = ceil(1 + (-log2(alpha) / H_min))
          = ceil(1 + (6 / 0.5)) = 13   [alpha=2^-6, H_min=0.5]
@@ -758,6 +779,7 @@ If same bit repeats C=13 times consecutively → set HEALTH_FAIL, halt
 ```
 
 **Adaptive Proportion Test (APT):**
+
 ```
 Window W = 512 samples
 Cutoff B = 325  [for H_min=0.5, alpha=2^-6]
@@ -766,6 +788,7 @@ If count > B → set HEALTH_FAIL, halt
 ```
 
 **MMIO registers (base 0x1000_0500, offset 0x00–0x1C):**
+
 ```
 0x00  CTRL        WO  [0]=enable [1]=reseed_req
 0x04  STATUS      RO  [0]=ready [1]=health_fail [2]=rct_fail [3]=apt_fail [4]=pool_ready
@@ -775,6 +798,7 @@ If count > B → set HEALTH_FAIL, halt
 ```
 
 **Ring oscillator placement note:** Add to `boards/ulx3s.lpf`:
+
 ```
 FREQUENCY PORT "trng_osc_0" IGNORE;
 FREQUENCY PORT "trng_osc_1" IGNORE;
@@ -785,6 +809,7 @@ FREQUENCY PORT "trng_osc_3" IGNORE;
 This prevents nextpnr from optimising the oscillator loops away.
 
 **Acceptance:**
+
 ```bash
 make sim-trng
 # Simulation must show:
@@ -803,12 +828,14 @@ Create `rtl/drbg.v`. Uses the SHA-3 engine (Keccak) for SHAKE-256 output.
 **State:** 256-bit internal state (V || Key as used in CTR_DRBG concept, mapped to SHAKE)
 
 **Operation:**
+
 - `RESEED`: XOR entropy from TRNG into state; run SHAKE-256 on state; replace state with output
 - `GENERATE(n_bytes)`: Run SHAKE-256 on state; output n_bytes; update state with remaining output
 - Reseed counter: 32-bit; incremented on each GENERATE call; forced reseed at counter = 1000
 - If TRNG `health_fail` asserted during required reseed: assert `drbg_halt` → top-level halt
 
 **MMIO (base 0x1000_0500, offset 0x20–0x3C):**
+
 ```
 0x20  DRBG_CTRL    WO  [0]=generate [1]=reseed [2]=reset; [15:8]=byte_count
 0x24  DRBG_STATUS  RO  [0]=ready [1]=done [2]=reseed_needed [3]=halted
@@ -819,6 +846,7 @@ Create `rtl/drbg.v`. Uses the SHA-3 engine (Keccak) for SHAKE-256 output.
 ```
 
 **Acceptance:**
+
 ```bash
 make sim-drbg
 python3 scripts/run_kat.py --suite drbg
@@ -830,6 +858,7 @@ python3 scripts/run_kat.py --suite drbg
 ### Task 2.3 — SymbiYosys Formal for TRNG Health
 
 Create `formal/trng_health.sby`. Prove:
+
 1. RCT triggers within 13 cycles of stuck-bit fault injection
 2. `health_fail` once set cannot be cleared without reset
 
@@ -838,6 +867,7 @@ Create `formal/trng_health.sby`. Prove:
 ---
 
 ### Phase 2 Acceptance Criteria:
+
 ```
 [ ] make sim-trng shows correct RCT halt on injected fault
 [ ] make sim-trng shows correct APT halt on biased input
@@ -859,6 +889,7 @@ Create `formal/trng_health.sby`. Prove:
 Create `rtl/ntt.v`.
 
 **Parameters:**
+
 ```verilog
 parameter COEFF_BITS = 24;   // wide enough for q=8380417
 parameter N          = 256;  // polynomial degree
@@ -866,6 +897,7 @@ parameter BRAM_DEPTH = 512;  // 2x N for ping-pong
 ```
 
 **Interface:**
+
 ```verilog
 module ntt_engine (
     input  wire        clk,
@@ -885,6 +917,7 @@ module ntt_engine (
 ```
 
 **Butterfly unit:**
+
 ```
 Cooley-Tukey butterfly:
   a' = a + w*b  mod q
@@ -900,17 +933,20 @@ Barrett reduction for mod q:
 ```
 
 **Twiddle factors:**
+
 - Precomputed as `$readmemh` from files:
   - `fw/ntt_twiddles_3329.hex` — 128 twiddle factors for q=3329
   - `fw/ntt_twiddles_8380417.hex` — 128 twiddle factors for q=8380417
 - Selected at runtime by `MODULUS` register
 
 **Zeroization:**
+
 - When `CTRL[2]` (zeroize) written: counter walks addresses 0..511, writes 0
 - `STATUS[2]` (zeroized) asserts after all addresses zeroed
 - `irq_done` asserts only after zeroized is set — operation and zeroize both complete
 
 **Acceptance:**
+
 ```bash
 make sim-ntt
 # Testbench must verify:
@@ -926,6 +962,7 @@ make formal-ntt  # See Task 3.2
 ### Task 3.2 — NTT Formal Verification
 
 Create `formal/ntt_zeroize.sby`. Prove:
+
 1. `irq_done` never asserts while any scratchpad address is non-zero
 2. After ZEROIZE completes, all scratchpad reads return 0
 3. NTT engine never enters undefined state
@@ -935,6 +972,7 @@ Create `formal/ntt_zeroize.sby`. Prove:
 ---
 
 ### Phase 3 Acceptance Criteria:
+
 ```
 [ ] NTT(iNTT(p)) == p for 100 random polynomials, q=3329
 [ ] NTT(iNTT(p)) == p for 100 random polynomials, q=8380417
@@ -955,6 +993,7 @@ Create `formal/ntt_zeroize.sby`. Prove:
 Create `rtl/mlkem.v` — state machine that orchestrates ML-KEM-768 using the NTT and Keccak engines.
 
 **ML-KEM-768 parameters:**
+
 ```
 k    = 3      (module rank)
 n    = 256    (polynomial degree)
@@ -966,6 +1005,7 @@ dv   = 4      (compression bits, ciphertext v)
 ```
 
 **Key sizes:**
+
 ```
 Encapsulation key ek:    1184 bytes
 Decapsulation key dk:    2400 bytes (full dk including ek, H(ek), z)
@@ -974,6 +1014,7 @@ Shared secret K:           32 bytes
 ```
 
 **State machine — KeyGen:**
+
 ```
 IDLE → SAMPLE_A (SHAKE-128 on rho) → SAMPLE_S_E (CBD from sigma)
      → NTT_S → NTT_E → MATRIX_MUL → ADD_E → ENCODE_EK
@@ -981,6 +1022,7 @@ IDLE → SAMPLE_A (SHAKE-128 on rho) → SAMPLE_S_E (CBD from sigma)
 ```
 
 **State machine — Encaps:**
+
 ```
 IDLE → LOAD_EK → HASH_EK (SHA3-256) → SAMPLE_R (CBD from random)
      → NTT_R → MATRIX_MUL → COMPRESS_U
@@ -989,6 +1031,7 @@ IDLE → LOAD_EK → HASH_EK (SHA3-256) → SAMPLE_R (CBD from random)
 ```
 
 **State machine — Decaps:**
+
 ```
 IDLE → LOAD_DK (from KUE, not firmware) → DECODE_CT
      → RE_ENCAPS (runs Encaps with stored ek)
@@ -997,6 +1040,7 @@ IDLE → LOAD_DK (from KUE, not firmware) → DECODE_CT
 ```
 
 **MMIO (base 0x1000_0200):**
+
 ```
 0x00  CTRL      WO  [1:0]=op (0=keygen 1=encaps 2=decaps); [7:4]=slot
 0x04  STATUS    RO  [0]=ready [1]=done [2]=error [3]=busy
@@ -1010,6 +1054,7 @@ IDLE → LOAD_DK (from KUE, not firmware) → DECODE_CT
 **Key storage:** After KeyGen, the decapsulation key `dk` is passed to KUE for storage. The ML-KEM controller never exposes `dk` on the main bus — it writes directly to the KUE command interface.
 
 **Acceptance:**
+
 ```bash
 make sim-mlkem
 python3 scripts/run_kat.py --suite mlkem768
@@ -1033,6 +1078,7 @@ Create `rtl/keystore.v` — BRAM-backed key store. 8 slots. DMA-only access from
 ```
 
 **Slot layout:**
+
 ```
 Each slot (2400 bytes):
   [0:3]    flags     — policy bits (SIGN_ONLY, DECAP_ONLY, NO_EXPORT, NO_OVERWRITE)
@@ -1051,6 +1097,7 @@ Each slot (2400 bytes):
 Create `rtl/kue.v` — the policy engine between key store and crypto engines.
 
 **State machine:**
+
 ```
 IDLE → CHECK_POLICY → CHECK_LIMIT → DMA_KEY_TO_ENGINE
      → WAIT_ENGINE_DONE → INCREMENT_COUNTER → ZEROIZE_ENGINE_KEY_REGS
@@ -1063,6 +1110,7 @@ On limit reached:    → SIGNAL_LIMIT_ERR  → IDLE
 **Critical requirement:** At no point in any state does key material appear on the Wishbone main bus. The DMA between key store and crypto engine is an internal point-to-point connection, not routed through the bus crossbar.
 
 **Formal properties (add to `rtl/kue.v` under `ifdef FORMAL`):**
+
 ```verilog
 // Key bytes never appear on bus_rdata
 always @(*) begin
@@ -1078,6 +1126,7 @@ end
 ```
 
 **Acceptance:**
+
 ```bash
 make sim-kue
 # Testbench must verify:
@@ -1091,6 +1140,7 @@ make formal-kue_policy
 ---
 
 ### Phase 4 Acceptance Criteria:
+
 ```
 [ ] python3 scripts/run_kat.py --suite mlkem768 → 100% PASS
 [ ] Decaps(dk, Encaps(ek)) correct for 50 random keypairs in simulation
@@ -1111,6 +1161,7 @@ make formal-kue_policy
 Create `rtl/mldsa.v`.
 
 **ML-DSA-65 parameters:**
+
 ```
 k    = 4      (rows)
 l    = 4      (columns)
@@ -1126,6 +1177,7 @@ omega  = 80   (max ones in hint)
 ```
 
 **Key sizes:**
+
 ```
 Verification key vk:  1952 bytes
 Signing key sk:       4032 bytes
@@ -1133,6 +1185,7 @@ Signature sigma:      3309 bytes
 ```
 
 **State machine — Sign (hardware rejection sampling loop):**
+
 ```
 IDLE → LOAD_SK (from KUE) → HASH_MSG (SHAKE-256)
      → REJECTION_LOOP:
@@ -1150,6 +1203,7 @@ IDLE → LOAD_SK (from KUE) → HASH_MSG (SHAKE-256)
 **Critical:** The rejection loop (`SAMPLE_Y` to `CHECK_NORM`) is entirely in hardware. Firmware never sees the loop iteration. This is non-negotiable for timing-attack resistance.
 
 **MMIO (base 0x1000_0300):**
+
 ```
 0x00  CTRL      WO  [1:0]=op (0=keygen 1=sign 2=verify); [7:4]=slot
 0x04  STATUS    RO  [0]=ready [1]=done [2]=error [3]=busy [15:8]=rejection_count
@@ -1161,6 +1215,7 @@ IDLE → LOAD_SK (from KUE) → HASH_MSG (SHAKE-256)
 ```
 
 **Acceptance:**
+
 ```bash
 make sim-mldsa
 python3 scripts/run_kat.py --suite mldsa65
@@ -1170,6 +1225,7 @@ python3 scripts/run_kat.py --suite mldsa65
 ---
 
 ### Phase 5 Acceptance Criteria:
+
 ```
 [ ] python3 scripts/run_kat.py --suite mldsa65 → 100% PASS
 [ ] Verify(vk, msg, Sign(sk, msg)) == accept for 50 random keypairs
@@ -1193,6 +1249,7 @@ Update `rtl/boot_rom.v` to add the PMP configuration sequence.
 The Boot ROM firmware (not RTL) executes this sequence via CSR writes before jumping to main firmware. The RTL provides a signal `boot_complete` that is asserted only after the jump — used by formal verification.
 
 **Boot ROM assembly sequence (add to `fw/boot.S`):**
+
 ```asm
 # Configure PMP regions via CSR writes
 # Region 0: Boot ROM 0x0000_0000 – 0x0000_3FFF, R-X, LOCKED
@@ -1268,6 +1325,7 @@ module lifecycle (
 ```
 
 **Formal properties:**
+
 ```verilog
 `ifdef FORMAL
     // State can never decrease
@@ -1281,6 +1339,7 @@ module lifecycle (
 ```
 
 **Acceptance:**
+
 ```bash
 make sim-lifecycle
 # Testbench verifies:
@@ -1322,6 +1381,7 @@ module rollback (
 ```
 
 **Acceptance:**
+
 ```bash
 make sim-rollback
 # Verify: counter only increases; bus write returns err; boot_rom_increment_en increments correctly
@@ -1334,6 +1394,7 @@ make sim-rollback
 Update `rtl/bus.v` with formal assertions. Create `formal/bus_decoder.sby`.
 
 **Formal properties:**
+
 ```verilog
 `ifdef FORMAL
     // No address maps to two peripherals simultaneously
@@ -1363,6 +1424,7 @@ Update `rtl/bus.v` with formal assertions. Create `formal/bus_decoder.sby`.
 ---
 
 ### Phase 6 Acceptance Criteria:
+
 ```
 [ ] make formal-bus_decoder exits 0
 [ ] make formal-kue_policy exits 0
@@ -1392,6 +1454,7 @@ Create `rtl/spi_slave.v`.
 **Protocol:** SPI mode 0 (CPOL=0, CPHA=0). CS# active low. 8-bit bytes, MSB first.
 
 **Frame format:**
+
 ```
 Command frame (host → Quarc):
   [0]      CMD_LEN_HI   Length of payload (high byte)
@@ -1408,6 +1471,7 @@ Response frame (Quarc → host):
 ```
 
 **MMIO (base 0x2000_0000):**
+
 ```
 0x00  STATUS    RO  [0]=cmd_ready [1]=tx_busy [2]=cs_active
 0x04  CMD_ID    RO  Command ID of received command (valid when cmd_ready)
@@ -1426,6 +1490,7 @@ Response frame (Quarc → host):
 Implement `fw/noise.c` — Noise Protocol Framework, pattern IK.
 
 **Noise IK pattern:**
+
 ```
 ← s                     (Quarc's static ML-DSA key, known to host)
 ...
@@ -1434,6 +1499,7 @@ Implement `fw/noise.c` — Noise Protocol Framework, pattern IK.
 ```
 
 **Hybrid key exchange:**
+
 - Replace DH operations with hybrid: `ML-KEM-768 + X25519`
 - Shared secret = `SHAKE-256(ML-KEM_ss || X25519_ss)`
 - Use KUE for any Quarc-side ML-KEM decapsulation (decap key in slot)
@@ -1441,6 +1507,7 @@ Implement `fw/noise.c` — Noise Protocol Framework, pattern IK.
 **Channel encryption:** AES-256-GCM with per-message nonce (64-bit monotonic counter).
 
 **Files:**
+
 - `fw/noise.c` — Noise state machine
 - `fw/aes_gcm.c` — AES-256-GCM (software implementation for channel layer)
 - `fw/x25519.c` — X25519 Diffie-Hellman (permissive-licensed reference implementation)
@@ -1452,12 +1519,14 @@ Implement `fw/noise.c` — Noise Protocol Framework, pattern IK.
 Create `fw/cmd.c` — dispatches SPI commands to appropriate firmware handlers.
 
 All commands must:
+
 1. Check lifecycle state — return `ERR_LIFECYCLE` if command not permitted in current state
 2. Authenticate via Noise channel — all commands except `CHANNEL_INIT` require established session
 3. Call appropriate driver
 4. Return response
 
 **Command IDs:**
+
 ```c
 #define CMD_PING          0x01
 #define CMD_GET_RANDOM    0x02
@@ -1478,6 +1547,7 @@ All commands must:
 ---
 
 ### Phase 7 Acceptance Criteria:
+
 ```
 [ ] SPI frame encoding/decoding correct (loopback simulation)
 [ ] CHANNEL_INIT: Noise IK handshake completes in simulation with software host
@@ -1510,6 +1580,7 @@ Update `rtl/boot_rom.v` and `fw/boot.S` with full secure boot sequence:
 **Root verification key:** Embedded in Boot ROM at synthesis time via `$readmemh`. 1952 bytes (ML-DSA-65 vk).
 
 **Halt conditions (any → infinite loop + LED blink pattern):**
+
 ```
 TRNG health failure:   LED pattern 0b001 (LED0 blink fast)
 Signature failure:     LED pattern 0b010 (LED1 blink fast)
@@ -1523,6 +1594,7 @@ Rollback violation:    LED pattern 0b011 (LED0+1 blink fast)
 Add QSPI Flash read driver to Boot ROM firmware.
 
 **QSPI Flash (W25Q128, connected to ECP5 QSPI pins):**
+
 ```
 Commands used:
   0x03  READ    — read firmware image at fixed offset 0x100000
@@ -1538,6 +1610,7 @@ Firmware is stored at Flash offset `0x100000` (1MB). Boot ROM reads `fw_length` 
 Run full integration simulation: software SPI master (Python script) sends all 14 commands, verifies responses.
 
 Create `scripts/integration_test.py`:
+
 ```python
 # Connects to ULX3S SPI via USB-serial adapter
 # Runs through:
@@ -1564,6 +1637,7 @@ Create `scripts/integration_test.py`:
 Implement the PQC Firmware OTA demo from PRD Section 1.4.
 
 Create `scripts/ota_demo.py`:
+
 ```python
 # Simulates full OTA flow:
 # 1. Device in MANUFACTURING: generate ML-DSA identity key (slot 0)
@@ -1772,18 +1846,18 @@ Create `fw/hal.h`:
 
 ## Summary: Phase Exit Gates
 
-| Phase | Key Exit Gate | Must Not Proceed Without |
-|---|---|---|
-| 0 | Ibex boots, UART output on hardware | Physical board test |
-| 1 | 100% NIST SHA-3 KAT + formal proof | KAT script + SymbiYosys |
-| 2 | SP 800-22 pass + DRBG KAT | Statistical test suite |
-| 3 | NTT correctness + zeroization formal | Simulation + SymbiYosys |
-| 4 | 100% ML-KEM FIPS 203 KAT + KUE rejection | KAT script + sim |
-| 5 | 100% ML-DSA FIPS 204 KAT + HW rejection sampler | KAT script + waveform |
-| 6 | All 6 SymbiYosys formal proofs pass | make formal exits 0 |
-| 7 | All 14 SPI commands working + Noise handshake | Integration simulation |
-| 8 | All PRD v1.1 Section 9.5 criteria + 24h soak | Physical hardware |
+| Phase | Key Exit Gate                                   | Must Not Proceed Without |
+| ----- | ----------------------------------------------- | ------------------------ |
+| 0     | Ibex boots, UART output on hardware             | Physical board test      |
+| 1     | 100% NIST SHA-3 KAT + formal proof              | KAT script + SymbiYosys  |
+| 2     | SP 800-22 pass + DRBG KAT                       | Statistical test suite   |
+| 3     | NTT correctness + zeroization formal            | Simulation + SymbiYosys  |
+| 4     | 100% ML-KEM FIPS 203 KAT + KUE rejection        | KAT script + sim         |
+| 5     | 100% ML-DSA FIPS 204 KAT + HW rejection sampler | KAT script + waveform    |
+| 6     | All 6 SymbiYosys formal proofs pass             | make formal exits 0      |
+| 7     | All 14 SPI commands working + Noise handshake   | Integration simulation   |
+| 8     | All PRD v1.1 Section 9.5 criteria + 24h soak    | Physical hardware        |
 
 ---
 
-*Quarc Implementation Plan v1.0 // 2025 // Proprietary & Confidential*
+_Quarc Implementation Plan v1.0 // 2025 // Proprietary & Confidential_

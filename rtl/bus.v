@@ -236,6 +236,8 @@ module quarc_bus (
         .bus_wdata (data_wdata),
         .bus_rdata (ntt_rdata),
         .bus_ack   (ntt_ack),
+        .c_req     (1'b0), .c_we(1'b0), .c_addr(8'h0), .c_wdata(32'h0),
+        .c_rdata   (), .c_ack(),
         .irq_done  (ntt_irq)
     );
 
