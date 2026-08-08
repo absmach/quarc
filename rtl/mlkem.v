@@ -227,13 +227,13 @@ module mlkem (
             enc_c0 <= 12'd0; enc_acc <= 24'h0; cp_cnt <= 11'd0;
             cmem_we <= 1'b0; cmem_wa <= 13'd0; cmem_wd <= 12'd0; cmem_ra <= 13'd0;
             gh_req <= 1'b0; gh_we <= 1'b0; gh_addr <= 8'h0; gh_wdata <= 32'h0;
-            ek_rd <= 12'd0; dk_rd <= 12'd0;
         end else begin
             cmem_we <= 1'b0;
             n_req <= 1'b0;
             ss_start <= 1'b0;
-            done_q <= 1'b0;
             gh_req <= 1'b0;
+            if (bus_req && !bus_we && bus_addr == 8'h04)
+                done_q <= 1'b0;   // STATUS read clears the completion flag
 
             case (st)
                 // ----------------------------------------------------------

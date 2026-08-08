@@ -4,7 +4,7 @@ IBEX_PRIM  := ibex/vendor/lowrisc_ip/ip/prim
 IBEX_PKG   := $(wildcard $(IBEX_PRIM)/rtl/*pkg.sv) $(wildcard $(IBEX_PRIM)_generic/rtl/*pkg.sv)
 IBEX_V     := build/ibex.v
 QUARC_SRCS := rtl/top.v rtl/bus.v rtl/boot_rom.v rtl/data_ram.v rtl/keccak.v rtl/keccak_engine.v rtl/sha3.v \
-               rtl/ntt.v rtl/mlkem.v rtl/mldsa.v rtl/trng.v rtl/drbg.v \
+               rtl/ntt.v rtl/mlkem.v rtl/shake_sampler.v rtl/sampling.v rtl/mldsa.v rtl/trng.v rtl/drbg.v \
                rtl/kue.v rtl/keystore.v rtl/lifecycle.v rtl/rollback.v \
                rtl/spi_slave.v rtl/uart.v rtl/timer.v
 ALL_SRCS   := $(IBEX_V) $(QUARC_SRCS)
@@ -110,6 +110,7 @@ sp80022: drbg-collect
 FW_SHA3_HEX := fw/boot_sha3.hex
 FW_ENTROPY_HEX := fw/boot_entropy.hex
 FW_NTT_HEX := fw/boot_ntt.hex
+FW_MLKEM_HEX := fw/boot_mlkem.hex
 
 $(FW_SHA3_HEX): fw/boot_sha3.S fw/link.ld
 	$(MAKE) -C fw
@@ -118,6 +119,9 @@ $(FW_ENTROPY_HEX): fw/boot_entropy.S fw/link.ld
 	$(MAKE) -C fw
 
 $(FW_NTT_HEX): fw/boot_ntt.S fw/link.ld
+	$(MAKE) -C fw
+
+$(FW_MLKEM_HEX): fw/boot_mlkem.S fw/link.ld
 	$(MAKE) -C fw
 
 fw/boot_ram.hex: fw/boot_ram.S fw/link.ld
@@ -138,6 +142,10 @@ sim-ntt-soc: $(IBEX_V) $(FW_NTT_HEX)
 sim-ram-soc: $(IBEX_V) fw/boot_ram.hex
 	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_ram_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_ram_soc.sv -s tb_ram_soc
 	vvp build/sim_ram_soc.vvp
+
+sim-mlkem-soc: $(IBEX_V) $(FW_MLKEM_HEX)
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_mlkem_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_mlkem_soc.sv -s tb_mlkem_soc
+	vvp build/sim_mlkem_soc.vvp
 
 synth: $(IBEX_V)
 	yosys -p "read_verilog -I rtl $(ALL_SRCS); synth_ecp5 -abc9 -top quarc_top -json build/quarc.json" 2>&1 | tee build/synth.log
