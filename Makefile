@@ -69,6 +69,12 @@ sim-mlkem: $(KAT_VEC)
 		rtl/keccak.v rtl/keccak_engine.v rtl/sha3.v rtl/shake_sampler.v rtl/sampling.v rtl/ntt.v \
 		rtl/mlkem.v tb/tb_mlkem.v -s tb_mlkem -I rtl
 	vvp build/sim_mlkem.vvp
+sim-mlkem-codec: $(KAT_VEC)
+	iverilog -g2012 -o build/sim_mlkem_codec.vvp rtl/mlkem_codec.v tb/tb_mlkem_codec.sv -s tb_mlkem_codec
+	vvp build/sim_mlkem_codec.vvp
+sim-mlkem-util: $(KAT_VEC)
+	iverilog -g2012 -o build/sim_mlkem_util.vvp rtl/mlkem_codec.v rtl/mlkem_compress.v tb/tb_mlkem_util.sv -s tb_mlkem_util
+	vvp build/sim_mlkem_util.vvp
 sim-sha3: $(KAT_VEC)
 sim-drbg: $(KAT_VEC)
 sim-ntt: $(KAT_VEC)
