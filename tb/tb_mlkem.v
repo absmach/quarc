@@ -22,7 +22,9 @@ module tb_mlkem;
         .c0_req(1'b0), .c0_state_in(1600'b0), .c0_done(), .c0_state_out(),
         .c1_req(1'b0), .c1_state_in(1600'b0), .c1_done(), .c1_state_out(),
         .c2_req(s_req), .c2_state_in(s_state_in), .c2_done(s_done), .c2_state_out(s_state_out),
-        .c3_req(h_req), .c3_state_in(h_state_in), .c3_done(h_done), .c3_state_out(h_state_out)
+        .c3_req(h_req), .c3_state_in(h_state_in), .c3_done(h_done), .c3_state_out(h_state_out),
+        .c4_req(1'b0), .c4_state_in(1600'b0), .c4_done(), .c4_state_out(),
+        .c5_req(1'b0), .c5_state_in(1600'b0), .c5_done(), .c5_state_out()
     );
 
     ntt u_ntt (

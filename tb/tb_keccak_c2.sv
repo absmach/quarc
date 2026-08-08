@@ -11,17 +11,19 @@ module tb_keccak_c2;
     always #5 clk = ~clk;
 
     reg        rst_n;
-    reg        c0_req, c1_req, c2_req, c3_req;
-    reg [1599:0] c0_in, c1_in, c2_in, c3_in;
-    wire       c0_done, c1_done, c2_done, c3_done;
-    wire [1599:0] c0_out, c1_out, c2_out, c3_out;
+    reg        c0_req, c1_req, c2_req, c3_req, c4_req, c5_req;
+    reg [1599:0] c0_in, c1_in, c2_in, c3_in, c4_in, c5_in;
+    wire       c0_done, c1_done, c2_done, c3_done, c4_done, c5_done;
+    wire [1599:0] c0_out, c1_out, c2_out, c3_out, c4_out, c5_out;
 
     keccak_engine dut (
         .clk(clk), .rst_n(rst_n),
         .c0_req(c0_req), .c0_state_in(c0_in), .c0_done(c0_done), .c0_state_out(c0_out),
         .c1_req(c1_req), .c1_state_in(c1_in), .c1_done(c1_done), .c1_state_out(c1_out),
         .c2_req(c2_req), .c2_state_in(c2_in), .c2_done(c2_done), .c2_state_out(c2_out),
-        .c3_req(c3_req), .c3_state_in(c3_in), .c3_done(c3_done), .c3_state_out(c3_out)
+        .c3_req(c3_req), .c3_state_in(c3_in), .c3_done(c3_done), .c3_state_out(c3_out),
+        .c4_req(c4_req), .c4_state_in(c4_in), .c4_done(c4_done), .c4_state_out(c4_out),
+        .c5_req(c5_req), .c5_state_in(c5_in), .c5_done(c5_done), .c5_state_out(c5_out)
     );
 
     reg [1599:0] state;
@@ -39,8 +41,8 @@ module tb_keccak_c2;
     initial begin
         $dumpfile("build/tb_keccak_c2.vcd");
         $dumpvars(0, tb_keccak_c2);
-        c0_req = 0; c1_req = 0; c2_req = 0; c3_req = 0;
-        c0_in = 1600'b0; c1_in = 1600'b0; c2_in = 1600'b0; c3_in = 1600'b0;
+        c0_req = 0; c1_req = 0; c2_req = 0; c3_req = 0; c4_req = 0; c5_req = 0;
+        c0_in = 1600'b0; c1_in = 1600'b0; c2_in = 1600'b0; c3_in = 1600'b0; c4_in = 1600'b0; c5_in = 1600'b0;
         rst_n = 0;
         #20; rst_n = 1;
         #20;
@@ -48,15 +50,15 @@ module tb_keccak_c2;
         load_kats;
 
         // pulse all four requests across a posedge so the engine latches them
-        c0_req = 1; c1_req = 1; c2_req = 1; c3_req = 1;
-        c0_in = state; c1_in = state; c2_in = state; c3_in = state;
+        c0_req = 1; c1_req = 1; c2_req = 1; c3_req = 1; c4_req = 1; c5_req = 1;
+        c0_in = state; c1_in = state; c2_in = state; c3_in = state; c4_in = state; c5_in = state;
         @(posedge clk);
         @(negedge clk);
-        c0_req = 0; c1_req = 0; c2_req = 0; c3_req = 0;
+        c0_req = 0; c1_req = 0; c2_req = 0; c3_req = 0; c4_req = 0; c5_req = 0;
 
-        // wait for the last client (c3) to finish
+        // wait for the last client (c5) to finish
         i = 0;
-        while (!c3_done && i < 1000) begin
+        while (!c5_done && i < 1000) begin
             @(posedge clk);
             i = i + 1;
         end
@@ -70,8 +72,12 @@ module tb_keccak_c2;
         else begin $display("FAIL: c2 output mismatch"); failures = failures + 1; end
         if (c3_out === exp_val) $display("PASS: c3 output matches");
         else begin $display("FAIL: c3 output mismatch"); failures = failures + 1; end
+        if (c4_out === exp_val) $display("PASS: c4 output matches");
+        else begin $display("FAIL: c4 output mismatch"); failures = failures + 1; end
+        if (c5_out === exp_val) $display("PASS: c5 output matches");
+        else begin $display("FAIL: c5 output mismatch"); failures = failures + 1; end
 
-        if (failures == 0) $display("PASS: all 4 clients permuted correctly");
+        if (failures == 0) $display("PASS: all 6 clients permuted correctly");
         else $display("FAIL: %0d client(s) mismatched", failures);
         $finish;
     end

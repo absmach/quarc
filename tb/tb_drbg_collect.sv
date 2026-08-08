@@ -39,7 +39,9 @@ module tb_drbg_collect;
         .c0_done(perm_done), .c0_state_out(perm_state_out),
         .c1_req(1'b0), .c1_state_in(1600'b0), .c1_done(), .c1_state_out(),
         .c2_req(1'b0), .c2_state_in(1600'b0), .c2_done(), .c2_state_out(),
-        .c3_req(1'b0), .c3_state_in(1600'b0), .c3_done(), .c3_state_out()
+        .c3_req(1'b0), .c3_state_in(1600'b0), .c3_done(), .c3_state_out(),
+        .c4_req(1'b0), .c4_state_in(1600'b0), .c4_done(), .c4_state_out(),
+        .c5_req(1'b0), .c5_state_in(1600'b0), .c5_done(), .c5_state_out()
     );
 
     integer fd;
