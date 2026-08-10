@@ -64,16 +64,26 @@ module quarc_bus (
     assign data_gnt  = data_req;
 
     // ── Instruction port: route to Boot ROM ──────────────────────────────────
+    // The data port also maps the ROM region (read-only) so C firmware can
+    // read its .rodata/.data constants from memory instead of immediates.
     wire        rom_instr_req   = instr_req && (instr_addr[31:16] == 16'h0000);
+    wire        rom_data_req    = data_req && !data_we && (data_addr[31:16] == 16'h0000);
     wire        rom_instr_rvalid;
     wire [31:0] rom_instr_rdata;
+    wire        rom_data_rvalid;
+    wire [31:0] rom_data_rdata;
 
     boot_rom u_boot_rom (
-        .clk    (clk),
-        .req    (rom_instr_req),
-        .addr   (instr_addr),
-        .rvalid (rom_instr_rvalid),
-        .rdata  (rom_instr_rdata)
+        .clk         (clk),
+        .rst_n       (rst_n),
+        .instr_req   (rom_instr_req),
+        .instr_addr  (instr_addr),
+        .instr_rvalid(rom_instr_rvalid),
+        .instr_rdata (rom_instr_rdata),
+        .data_req    (rom_data_req),
+        .data_addr   (data_addr),
+        .data_rvalid (rom_data_rvalid),
+        .data_rdata  (rom_data_rdata)
     );
 
     // Track unmapped instruction fetches: deliver a bubble (rvalid+rdata=0)
@@ -100,6 +110,8 @@ module quarc_bus (
     // Within each region, addr[15:8] selects the device.
     wire data_crypto_sel = (data_addr[31:24] == 8'h10);
     wire data_periph_sel = (data_addr[31:24] == 8'h20);
+    wire data_ram_sel    = (data_addr[31:16] == 16'h0001) && (data_addr[15:14] == 2'b01 || data_addr[15:14] == 2'b10);
+    wire data_rom_sel    = (data_addr[31:16] == 16'h0000) && !data_we;
     wire uart_sel        = data_periph_sel && (data_addr[15:8] == 8'h01);
     wire timer_sel       = data_periph_sel && (data_addr[15:8] == 8'h02);
     wire spi_sel         = data_periph_sel && (data_addr[15:8] == 8'h00);
@@ -108,7 +120,6 @@ module quarc_bus (
     wire drbg_sel        = data_crypto_sel && (data_addr[15:8] == 8'h05) && (data_addr[7:5] == 3'b001);
     wire ntt_sel         = data_crypto_sel && (data_addr[15:8] == 8'h08);
     wire mlkem_sel       = data_crypto_sel && (data_addr[15:8] == 8'h09);
-    wire data_ram_sel    = (data_addr[31:16] == 16'h0001) && (data_addr[15:14] == 2'b01);
 
     // ML-KEM controller wires (0x1000_0900)
     wire        mlkem_ack, mlkem_irq;
@@ -176,11 +187,15 @@ module quarc_bus (
     wire        ntt_irq;
 
     // ── SHA-3 / SHAKE (base 0x1000_0000) ─────────────────────────────────────
+    // OUT_MAX >= 768 (SampleNTT squeeze), MSG_MAX >= 2272 (H(c||ek) in decaps)
     wire        sha3_ack;
     wire [31:0] sha3_rdata;
     wire        sha3_irq;
 
-    sha3 u_sha3 (
+    sha3 #(
+        .OUT_MAX(1024),
+        .MSG_MAX(2560)
+    ) u_sha3 (
         .clk       (clk),
         .rst_n     (rst_n),
         .bus_req   (data_req && sha3_sel),
@@ -195,7 +210,6 @@ module quarc_bus (
         .perm_done      (sha3_perm_done),
         .perm_state_out (sha3_perm_state_out)
     );
-
     // ── TRNG (base 0x1000_0500) ──────────────────────────────────────────────
     wire        trng_ack;
     wire [31:0] trng_rdata;
@@ -318,7 +332,7 @@ module quarc_bus (
 
     // ── Data response mux ────────────────────────────────────────────────────
     // Latch which device responded so we can mux rdata one cycle later.
-    reg uart_sel_q, timer_sel_q, spi_sel_q, sha3_sel_q, trng_sel_q, drbg_sel_q, ntt_sel_q, mlkem_sel_q, ram_sel_q, unmapped_q, was_read_q;
+    reg uart_sel_q, timer_sel_q, spi_sel_q, sha3_sel_q, trng_sel_q, drbg_sel_q, ntt_sel_q, mlkem_sel_q, ram_sel_q, rom_sel_q, unmapped_q, was_read_q;
     always @(posedge clk) begin
         if (!rst_n) begin
             uart_sel_q  <= 1'b0;
@@ -330,6 +344,7 @@ module quarc_bus (
             ntt_sel_q   <= 1'b0;
             mlkem_sel_q <= 1'b0;
             ram_sel_q   <= 1'b0;
+            rom_sel_q   <= 1'b0;
             unmapped_q  <= 1'b0;
             was_read_q  <= 1'b0;
         end else if (data_req) begin
@@ -342,7 +357,8 @@ module quarc_bus (
             ntt_sel_q   <= ntt_sel;
             mlkem_sel_q <= mlkem_sel;
             ram_sel_q   <= data_ram_sel;
-            unmapped_q  <= !data_periph_sel && !data_crypto_sel && !data_ram_sel;
+            rom_sel_q   <= data_rom_sel;
+            unmapped_q  <= !data_periph_sel && !data_crypto_sel && !data_ram_sel && !data_rom_sel;
             was_read_q  <= !data_we;
         end else begin
             uart_sel_q  <= 1'b0;
@@ -354,6 +370,7 @@ module quarc_bus (
             ntt_sel_q   <= 1'b0;
             mlkem_sel_q <= 1'b0;
             ram_sel_q   <= 1'b0;
+            rom_sel_q   <= 1'b0;
             unmapped_q  <= 1'b0;
             was_read_q  <= 1'b0;
         end
@@ -384,6 +401,8 @@ module quarc_bus (
             data_rdata = mlkem_rdata;
         else if (ram_sel_q && was_read_q)
             data_rdata = ram_rdata;
+        else if (rom_sel_q && was_read_q)
+            data_rdata = rom_data_rdata;
         else if (spi_sel_q && was_read_q)
             data_rdata = 32'h0; // stub
         else

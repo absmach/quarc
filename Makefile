@@ -153,6 +153,10 @@ sim-mlkem-soc: $(IBEX_V) $(FW_MLKEM_HEX)
 	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_mlkem_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_mlkem_soc.sv -s tb_mlkem_soc
 	vvp build/sim_mlkem_soc.vvp
 
+sim-mlkem-sw-soc: $(IBEX_V) fw/boot_mlkem_sw.hex
+	iverilog -g2012 -D QUARC_SIM -I rtl -o build/sim_mlkem_sw_soc.vvp $(IBEX_V) $(QUARC_SRCS) tb/tb_mlkem_sw_soc.sv -s tb_mlkem_sw_soc
+	vvp build/sim_mlkem_sw_soc.vvp
+
 synth: $(IBEX_V)
 	yosys -p "read_verilog -I rtl $(ALL_SRCS); synth_ecp5 -abc9 -top quarc_top -json build/quarc.json" 2>&1 | tee build/synth.log
 	@grep -E "Number of cells|LUT4|TRELLIS_FF|EBR" build/synth.log
