@@ -56,8 +56,6 @@ module tb_mlkem_sw_soc;
             end
             rx_buf[rx_count % 32] = b;
             rx_count++;
-            if (b >= 8'h20 && b < 8'h7f) $write("%c", b);
-            else if (b == 8'h0d) $write("\n");
             // check for "MLKEM SW OK"
             if (rx_count >= 11 &&
                 rx_buf[(rx_count-11) % 32] == "M" &&

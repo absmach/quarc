@@ -108,15 +108,15 @@ partitioned in two steps. Step 1 is the 23k-lane (BeagleV-Fire), Step 2 is the
 
 Minimal fabric; the PQ algorithms run as firmware over MMIO coprocessors.
 
-| On FPGA (RTL)                        | In C (`fw/*.c`)                       |
-| ------------------------------------ | ------------------------------------- |
-| Keccak-f[1600] (`keccak_engine.v`)   | ML-KEM-768 algorithm (`mlkem_sw.c`)   |
-| SHA-3/SHAKE wrapper (`sha3.v`)       | ML-KEM K-PKE encode/decode            |
-| NTT/iNTT + basemul (`ntt.v`)         | CBD sampling                          |
-| TRNG + DRBG (`trng.v`, `drbg.v`)     | keygen/encaps/decaps orchestration    |
-| Ibex RV32IMC soft core               | boot/secure-boot                      |
-| Wishbone bus, UART, timer, ROM, RAM  | drivers, Noise channel, dispatcher    |
-| Lifecycle + rollback counters        | command handlers                      |
+| On FPGA (RTL)                       | In C (`fw/*.c`)                     |
+| ----------------------------------- | ----------------------------------- |
+| Keccak-f[1600] (`keccak_engine.v`)  | ML-KEM-768 algorithm (`mlkem_sw.c`) |
+| SHA-3/SHAKE wrapper (`sha3.v`)      | ML-KEM K-PKE encode/decode          |
+| NTT/iNTT + basemul (`ntt.v`)        | CBD sampling                        |
+| TRNG + DRBG (`trng.v`, `drbg.v`)    | keygen/encaps/decaps orchestration  |
+| Ibex RV32IMC soft core              | boot/secure-boot                    |
+| Wishbone bus, UART, timer, ROM, RAM | drivers, Noise channel, dispatcher  |
+| Lifecycle + rollback counters       | command handlers                    |
 
 Hardware ML-KEM controller (`mlkem.v`), sampling datapath (`sampling.v`,
 `shake_sampler.v`), ML-DSA controller (`mldsa.v`), KUE, keystore, and SPI slave
@@ -127,13 +127,13 @@ over MMIO instead.
 
 With 84k LUTs, hardware accelerators return and C shrinks to a thin driver.
 
-| On FPGA (RTL) | In C (`fw/*.c`) |
-| --- | --- |
-| All of Step 1, **plus:** | Boot/secure-boot |
-| ML-KEM controller (`mlkem.v` + sampling) | Command dispatch (thin) |
-| ML-DSA controller (`mldsa.v`) | Noise channel, drivers |
-| KUE + keystore (BRAM) | No ML-KEM algorithm logic |
-| SPI slave (`spi_slave.v`) | |
+| On FPGA (RTL)                            | In C (`fw/*.c`)           |
+| ---------------------------------------- | ------------------------- |
+| All of Step 1, **plus:**                 | Boot/secure-boot          |
+| ML-KEM controller (`mlkem.v` + sampling) | Command dispatch (thin)   |
+| ML-DSA controller (`mldsa.v`)            | Noise channel, drivers    |
+| KUE + keystore (BRAM)                    | No ML-KEM algorithm logic |
+| SPI slave (`spi_slave.v`)                |                           |
 
 Hardware ML-DSA and the hardware ML-KEM datapath are the main consumers of the
 extra ~60k LUTs. Full security stack (KUE, keystore, SPI host channel, ML-DSA)
@@ -416,10 +416,10 @@ Status legend: 🟢 verified · 🟡 code complete, awaiting verification · �
 
 ### FPGA targets
 
-| Board        | FPGA                                   | Flow                           | Partition                                                                                                            | Status                                                                                              |
-| ------------ | -------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins)    | Step 1: crypto in C (`mlkem_sw.c` over sha3+ntt MMIO); no hw ML-KEM/ML-DSA controller                                | Planned — fabric kept minimal to fit 23k; SE driven by SoC RISC-V cores (Linux) over AXI/SPI bridge |
-| ULX3S        | Lattice ECP5-85K (84k LUTs)            | yosys + nextpnr-ecp5 + ecppack | Step 2: move ML-KEM/ML-DSA/KUE/keystore/SPI back into fabric; C becomes thin driver                                 | Primary dev target; bitstream builds, 27 MHz                                                         |
+| Board        | FPGA                                   | Flow                           | Partition                                                                             | Status                                                                                              |
+| ------------ | -------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins)    | Step 1: crypto in C (`mlkem_sw.c` over sha3+ntt MMIO); no hw ML-KEM/ML-DSA controller | Planned — fabric kept minimal to fit 23k; SE driven by SoC RISC-V cores (Linux) over AXI/SPI bridge |
+| ULX3S        | Lattice ECP5-85K (84k LUTs)            | yosys + nextpnr-ecp5 + ecppack | Step 2: move ML-KEM/ML-DSA/KUE/keystore/SPI back into fabric; C becomes thin driver   | Primary dev target; bitstream builds, 27 MHz                                                        |
 
 For the BeagleV-Fire (Step 1), the SE runs in the PolarFire fabric and is driven
 by the SoC's own RISC-V cores (Linux) over an AXI/SPI bridge, replacing the

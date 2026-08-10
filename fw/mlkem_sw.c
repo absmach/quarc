@@ -485,10 +485,8 @@ int main(void)
 
     for (i = 0; i < 32; i++) { kat_d[i] = (u8)i; kat_z[i] = (u8)(32 + i); kat_m[i] = (u8)(64 + i); }
 
-    uart_puts("S1 keygen\r\n");
     mlkem_keygen(ek, dk, kat_d, kat_z);
-    if (!mem_eq(ek, kat_pk, 1184) || !mem_eq(dk, kat_dk, 2400)) { fail = 1; uart_puts("KG FAIL\r\n"); }
-    else uart_puts("KG OK\r\n");
+    if (!mem_eq(ek, kat_pk, 1184) || !mem_eq(dk, kat_dk, 2400)) fail = 1;
 #ifdef HOST_DEBUG
     {
         int i, ndiff = 0;
@@ -500,10 +498,8 @@ int main(void)
     }
 #endif
 
-    uart_puts("S2 encaps\r\n");
     mlkem_encaps(ss1, ct, ek, kat_m);
-    if (!mem_eq(ct, kat_ct, 1088) || !mem_eq(ss1, kat_ss, 32)) { fail = 1; uart_puts("EN FAIL\r\n"); }
-    else uart_puts("EN OK\r\n");
+    if (!mem_eq(ct, kat_ct, 1088) || !mem_eq(ss1, kat_ss, 32)) fail = 1;
 #ifdef HOST_DEBUG
     {
         int i, ndiff = 0;
@@ -515,10 +511,8 @@ int main(void)
     }
 #endif
 
-    uart_puts("S3 decaps\r\n");
     mlkem_decaps(ss2, dk, ct);
-    if (!mem_eq(ss2, kat_ss, 32)) { fail = 1; uart_puts("DE FAIL\r\n"); }
-    else uart_puts("DE OK\r\n");
+    if (!mem_eq(ss2, kat_ss, 32)) fail = 1;
 
     uart_puts("MLKEM SW ");
     uart_puts(fail ? "FAIL\r\n" : "OK\r\n");

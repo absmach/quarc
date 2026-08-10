@@ -250,7 +250,7 @@ module quarc_bus (
         .perm_state_out (drbg_perm_state_out)
     );
 
-    assign irq_external = uart_irq | sha3_irq | trng_irq | drbg_irq | ntt_irq | mlkem_irq;
+    assign irq_external = uart_irq | sha3_irq | trng_irq | drbg_irq | ntt_irq;
 
     // ── NTT (base 0x1000_0800) ───────────────────────────────────────────────
     ntt u_ntt (
@@ -262,30 +262,12 @@ module quarc_bus (
         .bus_wdata (data_wdata),
         .bus_rdata (ntt_rdata),
         .bus_ack   (ntt_ack),
-        .c_req     (mlkem_n_req), .c_we(mlkem_n_we), .c_addr(mlkem_n_addr), .c_wdata(mlkem_n_wdata),
-        .c_rdata   (mlkem_n_rdata), .c_ack(mlkem_n_ack),
+        .c_req     (1'b0), .c_we(1'b0), .c_addr(8'h00), .c_wdata(32'h0),
+        .c_rdata   (), .c_ack(),
         .irq_done  (ntt_irq)
     );
 
-    mlkem u_mlkem (
-        .clk        (clk),
-        .rst_n      (rst_n),
-        .bus_req    (data_req && mlkem_sel),
-        .bus_we     (data_we),
-        .bus_addr   (data_addr[7:0]),
-        .bus_wdata  (data_wdata),
-        .bus_rdata  (mlkem_rdata),
-        .bus_ack    (mlkem_ack),
-        .irq_done   (mlkem_irq),
-        .h_req      (mlkem_h_req), .h_state_in(mlkem_h_state_in),
-        .h_done     (mlkem_h_done), .h_state_out(mlkem_h_state_out),
-        .s_req      (mlkem_s_req), .s_state_in(mlkem_s_state_in),
-        .s_done     (mlkem_s_done), .s_state_out(mlkem_s_state_out),
-        .n_req      (mlkem_n_req), .n_we(mlkem_n_we), .n_addr(mlkem_n_addr),
-        .n_wdata    (mlkem_n_wdata), .n_rdata(mlkem_n_rdata), .n_ack(mlkem_n_ack)
-    );
-
-    // ── Shared Keccak engine (client 0 = SHA-3, client 1 = DRBG, client 2 = ML-KEM) ─
+    // ── Shared Keccak engine (client 0 = SHA-3, client 1 = DRBG; c2/c3 unused) ─
     keccak_engine u_keccak (
         .clk        (clk),
         .rst_n      (rst_n),
@@ -297,14 +279,8 @@ module quarc_bus (
         .c1_state_in (drbg_perm_state_in),
         .c1_done     (drbg_perm_done),
         .c1_state_out(drbg_perm_state_out),
-        .c2_req      (mlkem_s_req),
-        .c2_state_in (mlkem_s_state_in),
-        .c2_done     (mlkem_s_done),
-        .c2_state_out(mlkem_s_state_out),
-        .c3_req      (mlkem_h_req),
-        .c3_state_in (mlkem_h_state_in),
-        .c3_done     (mlkem_h_done),
-        .c3_state_out(mlkem_h_state_out),
+        .c2_req(1'b0), .c2_state_in(1600'b0), .c2_done(), .c2_state_out(),
+        .c3_req(1'b0), .c3_state_in(1600'b0), .c3_done(), .c3_state_out(),
         .c4_req(1'b0), .c4_state_in(1600'b0), .c4_done(), .c4_state_out(),
         .c5_req(1'b0), .c5_state_in(1600'b0), .c5_done(), .c5_state_out()
     );
@@ -397,8 +373,6 @@ module quarc_bus (
             data_rdata = drbg_rdata;
         else if (ntt_sel_q && was_read_q)
             data_rdata = ntt_rdata;
-        else if (mlkem_sel_q && was_read_q)
-            data_rdata = mlkem_rdata;
         else if (ram_sel_q && was_read_q)
             data_rdata = ram_rdata;
         else if (rom_sel_q && was_read_q)
@@ -411,7 +385,7 @@ module quarc_bus (
 
     // Touch the ack signals so synth doesn't warn — they're not used in Phase 0
     // because we always rvalid one cycle after req.
-    wire ack_unused = &{1'b0, uart_ack, timer_ack, sha3_ack, trng_ack, drbg_ack, ntt_ack, mlkem_ack};
+    wire ack_unused = &{1'b0, uart_ack, timer_ack, sha3_ack, trng_ack, drbg_ack, ntt_ack};
 
     // ── LEDs ─────────────────────────────────────────────────────────────────
     // led[0]: heartbeat from timer IRQ (toggled in firmware via memory write)
