@@ -301,6 +301,8 @@ Single-master Wishbone-lite bus. Ibex is the only bus master. All peripherals ar
 > controllers, KUE, keystore, and SPI slave to fabric. See README § "Two-step
 > deployment plan" for the authoritative partition. The table below documents
 > the *estimated* per-module cost for the Step 2 (hardware-accelerated) fabric.
+> **Step 1 bring-up build** (ML-KEM + TRNG/DRBG removed, `build/synth_step1_v4.log`)
+> measures **18,832 LUT4 + 10,554 FF** and fits the 23k MPFS025T.
 
 | Module                  | Est. LUTs       | Source           | Notes                                                         |
 | ----------------------- | --------------- | ---------------- | ------------------------------------------------------------- |

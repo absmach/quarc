@@ -98,6 +98,23 @@ hardware path is even larger. The single biggest driver is the full-width
 > PnR run and are obsolete. The design as originally conceived does **not** fit
 > the 84k ECP5-85K, let alone the 23k PolarFire MPFS025T.
 
+**Measured Step 1 bring-up build (`build/synth_step1_v4.log`):** after removing
+the hardware ML-KEM controller (`mlkem.v`, `sampling.v`, `shake_sampler.v`,
+codec/compress) and — for the initial bring-up — the TRNG/DRBG clients, the
+ECP5 synthesis fits the 23k BeagleV-Fire with margin:
+
+```
+ 18,832  LUT4          ← fits MPFS025T 23k LEs (Step 1 bring-up)
+ 10,554  TRELLIS_FF
+ 32      DP16KD
+ 17      MULT18X18D
+```
+
+The KAT self-test firmware (`fw/mlkem_sw.c`, fixed seeds) does not touch the
+TRNG/DRBG MMIO, so the bring-up build omits them; they are restored once a
+device with more budget is available (ULX3S, or when the ML-KEM software path
+needs real keygen/encaps on the BeagleV-Fire).
+
 ### Two-step deployment plan (C / FPGA partition)
 
 Because the full hardware crypto path exceeds every current target, Quarc is
@@ -117,6 +134,10 @@ Minimal fabric; the PQ algorithms run as firmware over MMIO coprocessors.
 | Ibex RV32IMC soft core              | boot/secure-boot                    |
 | Wishbone bus, UART, timer, ROM, RAM | drivers, Noise channel, dispatcher  |
 | Lifecycle + rollback counters       | command handlers                    |
+
+> Bring-up note: the initial Step 1 build for board testing drops the
+> `trng.v`/`drbg.v` row above (KAT self-test uses fixed seeds) to fit 23k;
+> they return for real keygen. See "Module LUT Budget (measured)".
 
 Hardware ML-KEM controller (`mlkem.v`), sampling datapath (`sampling.v`,
 `shake_sampler.v`), ML-DSA controller (`mldsa.v`), KUE, keystore, and SPI slave

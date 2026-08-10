@@ -8,11 +8,16 @@ QUARC_SRCS := rtl/top.v rtl/bus.v rtl/boot_rom.v rtl/data_ram.v rtl/keccak.v rtl
                rtl/kue.v rtl/keystore.v rtl/lifecycle.v rtl/rollback.v \
                rtl/spi_slave.v rtl/uart.v rtl/timer.v
 ALL_SRCS   := $(IBEX_V) $(QUARC_SRCS)
+# Step 1 bring-up build: hardware ML-KEM/ML-DSA controllers, KUE/keystore/
+# lifecycle/rollback/SPI, and (for bring-up) TRNG/DRBG are all omitted.
+STEP1_SRCS := $(IBEX_V) rtl/top.v rtl/bus.v rtl/boot_rom.v rtl/data_ram.v \
+              rtl/keccak.v rtl/keccak_engine.v rtl/sha3.v rtl/ntt.v \
+              rtl/uart.v rtl/timer.v
 TB_SRCS    := $(wildcard tb/*.sv)
 
 FW_HEX     := fw/boot.hex
 
-.PHONY: all sim synth pnr bitstream prog formal clean fw
+.PHONY: all sim synth synth-step1 pnr bitstream prog formal clean fw
 
 all: bitstream
 
@@ -160,6 +165,10 @@ sim-mlkem-sw-soc: $(IBEX_V) fw/boot_mlkem_sw.hex
 synth: $(IBEX_V)
 	yosys -p "read_verilog -I rtl $(ALL_SRCS); synth_ecp5 -abc9 -top quarc_top -json build/quarc.json" 2>&1 | tee build/synth.log
 	@grep -E "Number of cells|LUT4|TRELLIS_FF|EBR" build/synth.log
+
+synth-step1: $(IBEX_V)
+	yosys -p "read_verilog -I rtl $(STEP1_SRCS); synth_ecp5 -abc9 -top quarc_top -json build/quarc_step1.json" 2>&1 | tee build/synth_step1.log
+	@grep -E "Number of cells|LUT4|TRELLIS_FF|EBR" build/synth_step1.log
 
 pnr: synth
 	nextpnr-ecp5 --85k --package CABGA381 --json build/quarc.json \

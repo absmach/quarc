@@ -41,6 +41,10 @@ Consequences for implementation order:
   `sampling.v`, `shake_sampler.v`, `mldsa.v`) and KUE/keystore/SPI are **not**
   instantiated in the Step 1 fabric. ML-KEM is validated through the software
   path (`-DHOST_TEST` host harness + `sim-mlkem-sw-soc`).
+- **Step 1 bring-up build:** for initial board testing, `trng.v`/`drbg.v` are
+  also dropped (the KAT self-test uses fixed seeds). Measured ECP5 synthesis of
+  this build (`build/synth_step1_v4.log`) is **18,832 LUT4 + 10,554 FF**, which
+  **fits the 23k MPFS025T** with margin. TRNG/DRBG are restored for real keygen.
 - **Step 2 (ULX3S, 84k):** hardware accelerators return to fabric and the C
   layer reverts to orchestration. This is where the `< 12k / < 13k / < 15k`
   LUT targets could meaningfully apply — but only to the **hardware-controller**

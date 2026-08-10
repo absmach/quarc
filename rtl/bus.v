@@ -116,8 +116,6 @@ module quarc_bus (
     wire timer_sel       = data_periph_sel && (data_addr[15:8] == 8'h02);
     wire spi_sel         = data_periph_sel && (data_addr[15:8] == 8'h00);
     wire sha3_sel        = data_crypto_sel && (data_addr[15:8] == 8'h00);
-    wire trng_sel        = data_crypto_sel && (data_addr[15:8] == 8'h05) && (data_addr[7:5] == 3'b000);
-    wire drbg_sel        = data_crypto_sel && (data_addr[15:8] == 8'h05) && (data_addr[7:5] == 3'b001);
     wire ntt_sel         = data_crypto_sel && (data_addr[15:8] == 8'h08);
     wire mlkem_sel       = data_crypto_sel && (data_addr[15:8] == 8'h09);
 
@@ -176,10 +174,10 @@ module quarc_bus (
     assign irq_timer    = timer_irq;
 
     // Shared Keccak engine client wires (declared before use)
-    wire             sha3_perm_req, drbg_perm_req;
-    wire [1599:0]    sha3_perm_state_in, drbg_perm_state_in;
-    wire             sha3_perm_done, drbg_perm_done;
-    wire [1599:0]    sha3_perm_state_out, drbg_perm_state_out;
+    wire             sha3_perm_req;
+    wire [1599:0]    sha3_perm_state_in;
+    wire             sha3_perm_done;
+    wire [1599:0]    sha3_perm_state_out;
 
     // NTT wires (declared before use in irq_external)
     wire        ntt_ack;
@@ -210,47 +208,7 @@ module quarc_bus (
         .perm_done      (sha3_perm_done),
         .perm_state_out (sha3_perm_state_out)
     );
-    // ── TRNG (base 0x1000_0500) ──────────────────────────────────────────────
-    wire        trng_ack;
-    wire [31:0] trng_rdata;
-    wire        trng_irq;
-
-    trng u_trng (
-        .clk         (clk),
-        .rst_n       (rst_n),
-        .bus_req     (data_req && trng_sel),
-        .bus_we      (data_we),
-        .bus_addr    (data_addr[7:0]),
-        .bus_wdata   (data_wdata),
-        .bus_rdata   (trng_rdata),
-        .bus_ack     (trng_ack),
-        .irq_health  (trng_irq),
-        .inject_en_i (1'b0),
-        .inject_bit_i(1'b0)
-    );
-
-    // ── DRBG (base 0x1000_0520) ──────────────────────────────────────────────
-    wire        drbg_ack;
-    wire [31:0] drbg_rdata;
-    wire        drbg_irq;
-
-    drbg u_drbg (
-        .clk       (clk),
-        .rst_n     (rst_n),
-        .bus_req   (data_req && drbg_sel),
-        .bus_we    (data_we),
-        .bus_addr  (data_addr[7:0]),
-        .bus_wdata (data_wdata),
-        .bus_rdata (drbg_rdata),
-        .bus_ack   (drbg_ack),
-        .irq_done  (drbg_irq),
-        .perm_req       (drbg_perm_req),
-        .perm_state_in  (drbg_perm_state_in),
-        .perm_done      (drbg_perm_done),
-        .perm_state_out (drbg_perm_state_out)
-    );
-
-    assign irq_external = uart_irq | sha3_irq | trng_irq | drbg_irq | ntt_irq;
+    assign irq_external = uart_irq | sha3_irq | ntt_irq;
 
     // ── NTT (base 0x1000_0800) ───────────────────────────────────────────────
     ntt u_ntt (
@@ -267,7 +225,7 @@ module quarc_bus (
         .irq_done  (ntt_irq)
     );
 
-    // ── Shared Keccak engine (client 0 = SHA-3, client 1 = DRBG; c2/c3 unused) ─
+    // ── Shared Keccak engine (client 0 = SHA-3 only) ─────────────────────────
     keccak_engine u_keccak (
         .clk        (clk),
         .rst_n      (rst_n),
@@ -275,14 +233,10 @@ module quarc_bus (
         .c0_state_in (sha3_perm_state_in),
         .c0_done     (sha3_perm_done),
         .c0_state_out(sha3_perm_state_out),
-        .c1_req      (drbg_perm_req),
-        .c1_state_in (drbg_perm_state_in),
-        .c1_done     (drbg_perm_done),
-        .c1_state_out(drbg_perm_state_out),
-        .c2_req(1'b0), .c2_state_in(1600'b0), .c2_done(), .c2_state_out(),
-        .c3_req(1'b0), .c3_state_in(1600'b0), .c3_done(), .c3_state_out(),
-        .c4_req(1'b0), .c4_state_in(1600'b0), .c4_done(), .c4_state_out(),
-        .c5_req(1'b0), .c5_state_in(1600'b0), .c5_done(), .c5_state_out()
+        .c1_req      (1'b0),
+        .c1_state_in (1600'b0),
+        .c1_done     (),
+        .c1_state_out()
     );
 
     // ── Data RAM (0x0001_4000, 16 KiB) ────────────────────────────────────────
@@ -308,15 +262,13 @@ module quarc_bus (
 
     // ── Data response mux ────────────────────────────────────────────────────
     // Latch which device responded so we can mux rdata one cycle later.
-    reg uart_sel_q, timer_sel_q, spi_sel_q, sha3_sel_q, trng_sel_q, drbg_sel_q, ntt_sel_q, mlkem_sel_q, ram_sel_q, rom_sel_q, unmapped_q, was_read_q;
+    reg uart_sel_q, timer_sel_q, spi_sel_q, sha3_sel_q, ntt_sel_q, mlkem_sel_q, ram_sel_q, rom_sel_q, unmapped_q, was_read_q;
     always @(posedge clk) begin
         if (!rst_n) begin
             uart_sel_q  <= 1'b0;
             timer_sel_q <= 1'b0;
             spi_sel_q   <= 1'b0;
             sha3_sel_q  <= 1'b0;
-            trng_sel_q  <= 1'b0;
-            drbg_sel_q  <= 1'b0;
             ntt_sel_q   <= 1'b0;
             mlkem_sel_q <= 1'b0;
             ram_sel_q   <= 1'b0;
@@ -328,8 +280,6 @@ module quarc_bus (
             timer_sel_q <= timer_sel;
             spi_sel_q   <= spi_sel;
             sha3_sel_q  <= sha3_sel;
-            trng_sel_q  <= trng_sel;
-            drbg_sel_q  <= drbg_sel;
             ntt_sel_q   <= ntt_sel;
             mlkem_sel_q <= mlkem_sel;
             ram_sel_q   <= data_ram_sel;
@@ -341,8 +291,6 @@ module quarc_bus (
             timer_sel_q <= 1'b0;
             spi_sel_q   <= 1'b0;
             sha3_sel_q  <= 1'b0;
-            trng_sel_q  <= 1'b0;
-            drbg_sel_q  <= 1'b0;
             ntt_sel_q   <= 1'b0;
             mlkem_sel_q <= 1'b0;
             ram_sel_q   <= 1'b0;
@@ -367,10 +315,6 @@ module quarc_bus (
             data_rdata = timer_rdata;
         else if (sha3_sel_q && was_read_q)
             data_rdata = sha3_rdata;
-        else if (trng_sel_q && was_read_q)
-            data_rdata = trng_rdata;
-        else if (drbg_sel_q && was_read_q)
-            data_rdata = drbg_rdata;
         else if (ntt_sel_q && was_read_q)
             data_rdata = ntt_rdata;
         else if (ram_sel_q && was_read_q)
@@ -385,7 +329,7 @@ module quarc_bus (
 
     // Touch the ack signals so synth doesn't warn — they're not used in Phase 0
     // because we always rvalid one cycle after req.
-    wire ack_unused = &{1'b0, uart_ack, timer_ack, sha3_ack, trng_ack, drbg_ack, ntt_ack};
+    wire ack_unused = &{1'b0, uart_ack, timer_ack, sha3_ack, ntt_ack};
 
     // ── LEDs ─────────────────────────────────────────────────────────────────
     // led[0]: heartbeat from timer IRQ (toggled in firmware via memory write)
