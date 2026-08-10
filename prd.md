@@ -17,7 +17,7 @@
 | Document           | Quarc PRD v1.1                                                                                                                                                                                     |
 | Status             | DRAFT — Internal Only                                                                                                                                                                              |
 | Classification     | Proprietary & Confidential                                                                                                                                                                         |
-| FPGA Board         | ULX3S — Lattice ECP5-85K (84K LUTs)                                                                                                                                                                |
+| FPGA Board         | ULX3S — Lattice ECP5-85K (84K LUTs) + BeagleV-Fire — PolarFire MPFS025T (23k LEs, Step 1)                                                                                                               |
 | CPU                | Ibex RV32IMC (Apache 2.0, via sv2v + Yosys)                                                                                                                                                        |
 | HDL Language       | Verilog 2005 (all Quarc RTL) + sv2v for Ibex CPU only                                                                                                                                              |
 | Toolchain          | Yosys + nextpnr + sv2v + SymbiYosys + Icarus — 100% open source                                                                                                                                    |
@@ -137,7 +137,7 @@ This scenario is achievable entirely on the ULX3S 85K with the onboard ESP32 as 
 - Hybrid PQC + classical mode: ML-KEM + X25519, ML-DSA + Ed25519 simultaneously
 - Host SDK in C targeting STM32 and ESP32 as test host MCUs
 - Formal verification of bus decoder, Keccak core, PMP configuration logic via SymbiYosys
-- Total SoC fits < 15,000 LUTs on ECP5-85K (stretch: < 13,000)
+- Two-step fabric partition fits its target: Step 1 (BeagleV-Fire MPFS025T, 23k) with crypto in C, Step 2 (ULX3S ECP5-85K, 84k) with hardware accelerators. See README § "Two-step deployment plan". (The original `< 15,000 LUT` target was based on an obsolete estimate; the measured full-hardware design is ~150k LUT4 and requires the 84k part.)
 - Clock frequency >= 50 MHz achieved by nextpnr without timing relaxation
 - Complete v1 use case demo: PQC firmware OTA on ULX3S + ESP32
 
@@ -291,14 +291,25 @@ Single-master Wishbone-lite bus. Ibex is the only bus master. All peripherals ar
 
 ### 4.4 Module Inventory and LUT Budget
 
+> **Status:** The LUT estimates below date from the original single-partition
+> plan and are **obsolete**. Measured synthesis after the ML-KEM hardware
+> controller (`build/synth.log`) is **149,551 LUT4 + 58,901 FF** — the full
+> hardware path exceeds both the ECP5-85K (84k) and PolarFire MPFS025T (23k).
+> Quarc therefore uses a **two-step partition**: Step 1 (BeagleV-Fire, 23k)
+> keeps crypto in C (`fw/mlkem_sw.c` over the SHA-3 + NTT MMIO engines) with a
+> minimal fabric; Step 2 (ULX3S, 84k) returns the hardware ML-KEM/ML-DSA
+> controllers, KUE, keystore, and SPI slave to fabric. See README § "Two-step
+> deployment plan" for the authoritative partition. The table below documents
+> the *estimated* per-module cost for the Step 2 (hardware-accelerated) fabric.
+
 | Module                  | Est. LUTs       | Source           | Notes                                                         |
 | ----------------------- | --------------- | ---------------- | ------------------------------------------------------------- |
 | Ibex RV32IMC            | ~3,500          | Apache 2.0 (OSS) | Control plane only. Not on crypto path. Synthesised via sv2v. |
 | System Bus              | ~200            | Proprietary      | Custom Wishbone-lite + formal verification.                   |
-| Keccak/SHAKE engine     | ~1,500          | Proprietary      | Shared by all consumers. Built and verified first.            |
+| Keccak/SHAKE engine     | ~10,200         | Proprietary      | Shared by all consumers. Full-width 1600-bit round.           |
 | NTT engine (shared)     | ~3,000          | Proprietary      | Parameterised for q=3329 and q=8380417.                       |
-| ML-KEM-768 controller   | ~1,500          | Proprietary      | State machine. Drives NTT and Keccak engines.                 |
-| ML-DSA-65 controller    | ~2,000          | Proprietary      | State machine. Rejection sampler. Drives NTT.                 |
+| ML-KEM-768 controller   | ~1,500+          | Proprietary      | State machine. Drives NTT and Keccak engines.                 |
+| ML-DSA-65 controller    | ~2,000+          | Proprietary      | State machine. Rejection sampler. Drives NTT.                 |
 | Key Usage Enforcer      | ~200            | Proprietary      | HW policy engine. Enforces SIGN/DECAP/NO-EXPORT per slot.     |
 | TRNG                    | ~300            | Proprietary      | Ring oscillator. SP 800-90B RCT + APT health tests.           |
 | DRBG (SHAKE-256)        | ~200            | Proprietary      | Auto-reseed from TRNG. Entropy budgeting enforced.            |
@@ -310,7 +321,7 @@ Single-master Wishbone-lite bus. Ibex is the only bus master. All peripherals ar
 | UART debug              | ~200            | OSS (permissive) | Disabled in production bitstream.                             |
 | Timer + WDT             | ~150            | Proprietary      | RISC-V mtime/mtimecmp + 100ms watchdog.                       |
 | IRAM / DRAM             | BRAM only       | Inferred         | Separate address regions. No FPGA primitives.                 |
-| **TOTAL (estimate)**    | **~13,700 LUT** |                  | ~16% of ECP5-85K. Comfortable headroom.                       |
+| **TOTAL (Step 2, est.)**| **~23,000+ LUT**|                  | Full-hardware path. Does NOT fit MPFS025T (23k); fits ECP5-85K. |
 
 ---
 
@@ -695,7 +706,7 @@ All commands are subject to lifecycle state enforcement (Section 5.3). Commands 
 
 ### 7.2 Resource Budget
 
-- Total LUT target: < 15,000 (< 18% of ECP5-85K)
+- Total LUT target: fits Step 2 target (ECP5-85K, 84k LUT4) with hardware accelerators; Step 1 (BeagleV-Fire, 23k) uses crypto-in-C partition. Original `< 15,000` target is obsolete (measured full-hardware design ~150k LUT4).
 - EBR BRAM: < 50% of available 3744 Kbits on ECP5-85K
 - Fmax: >= 50 MHz with nextpnr-ecp5, timing constraints enforced, no relaxation
 
@@ -816,7 +827,7 @@ All commands are subject to lifecycle state enforcement (Section 5.3). Commands 
 - [ ] NTT scratchpad verified zero after every operation
 - [ ] PMP regions locked by Boot ROM before firmware entry (formal proof)
 - [ ] Ibex firmware executes without fault for 24-hour continuous soak
-- [ ] Total LUT count < 15,000 on ECP5-85K
+- [ ] Total LUT count fits Step 2 target (ECP5-85K, 84k LUT4) with hardware accelerators; Step 1 (BeagleV-Fire, 23k) uses crypto-in-C partition. Original `< 15,000` target is obsolete.
 - [ ] Clock frequency >= 50 MHz
 - [ ] SymbiYosys formal proofs pass for bus decoder, Keccak, KUE, PMP config, lifecycle FSM
 - [ ] v1 use case demo (Section 1.4) runs end-to-end on ULX3S + ESP32

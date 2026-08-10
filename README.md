@@ -57,38 +57,87 @@ Host MCU (STM32 / ESP32)
 │  Ibex RV32IMC  ←→  Wishbone-lite bus (~200 lines)  │
 │       │                                            │
 │  [Crypto]           [Memory]       [Peripherals]   │
-│  Keccak engine      IRAM (BRAM)    SPI slave        │
-│   (shared: SHA-3,   DRAM (BRAM)   UART (dev only)  │
-│    DRBG, later      Boot ROM       Timer/WDT        │
-│    ML-KEM/DSA)      Key store ◄── DMA only         │
-│  NTT engine (shared) (BRAM)        Lifecycle reg    │
-│  ML-KEM-768 ctrl     Rollback ctr  GPIO             │
-│  ML-DSA-65 ctrl                                     │
-│  TRNG + DRBG                                        │
-│  Key Usage Enforcer                                 │
+│  Keccak engine      IRAM (BRAM)    UART (dev only) │
+│   (shared: SHA-3,   DRAM (BRAM)   Timer/WDT        │
+│    DRBG, ML-KEM    Boot ROM       Lifecycle reg    │
+│    via MMIO)        Data RAM       Rollback ctr    │
+│  SHA-3 wrapper                     GPIO            │
+│  NTT engine (MMIO)                                │
+│  TRNG + DRBG                                       │
 └────────────────────────────────────────────────────┘
+
+Hardware ML-KEM/ML-DSA controllers, KUE, keystore, and SPI slave are
+**not in the Step 1 fabric** — ML-KEM runs in C (`fw/mlkem_sw.c`) over the
+SHA-3 + NTT MMIO engines (see two-step plan below).
 ```
 
-**Key invariant:** Firmware never reads key bytes. The Key Usage Enforcer (KUE) DMA's key material directly from the key store into crypto engine internal registers. PMP Region 3 blocks all firmware access to the key store at the hardware level.
+**Key invariant (Step 2 fabric):** Firmware never reads key bytes. The Key Usage Enforcer (KUE) DMA's key material directly from the key store into crypto engine internal registers. PMP Region 3 blocks all firmware access to the key store at the hardware level.
 
-### Module LUT Budget (measured, ECP5-85K)
+> Step 1 note: the key store and KUE are **not** in the Step 1 fabric (ML-KEM
+> runs in C). In Step 1, ML-KEM decapsulation keys live in firmware memory;
+> the key-store/KUE boundary is enforced once Step 2 hardware lands.
 
-All crypto blocks share **one** Keccak-f[1600] engine (`rtl/keccak_engine.v`), which dominates the crypto area.
+### Module LUT Budget (measured)
 
-| Module                               | Measured LUTs             |
-| ------------------------------------ | ------------------------- |
-| Ibex RV32IMC + bus/UART/timer/ROM    | ~7,800                    |
-| Keccak-f[1600] (full 1600-bit round) | ~10,200                   |
-| SHA-3 wrapper (client)               | ~4,200                    |
-| DRBG wrapper (client)                | ~8,200                    |
-| TRNG (health tests)                  | ~120                      |
-| Shared-engine arbitration            | ~1,600                    |
-| **Total (current, phase 1–2)**       | **~23,200 / 84,000 LUTs** |
+**Measured synthesis (`build/synth.log`, after ML-KEM hardware controller landed):**
 
-> Note: the original plan estimated ~1,500 LUTs for Keccak assuming a narrow/serial
-> datapath. The implemented full-width 1600-bit round is inherently ~10k LUTs. A
-> shared engine is what keeps the whole SoC at ~23k and under the 23k-LUT budget of
-> the BeagleV-Fire's PolarFire MPFS025T (target: `beaglev-fire`).
+```
+149,551  LUT4          ← exceeds BOTH target devices
+ 58,901  TRELLIS_FF
+ 22      DP16KD
+ 23      MULT18X18D
+```
+
+That total excludes `mldsa.v`, `kue.v`, `keystore.v`, `lifecycle.v`,
+`rollback.v`, and `spi_slave.v` (not yet in the synthesis), so the full
+hardware path is even larger. The single biggest driver is the full-width
+1600-bit Keccak-f[1600] permutation plus the hardware ML-KEM controller
+(`mlkem.v` + `sampling.v` + `shake_sampler.v` + codec/compress).
+
+> Earlier budget tables (~23.2k LUTs) were a projection from a pre-ML-KEM
+> PnR run and are obsolete. The design as originally conceived does **not** fit
+> the 84k ECP5-85K, let alone the 23k PolarFire MPFS025T.
+
+### Two-step deployment plan (C / FPGA partition)
+
+Because the full hardware crypto path exceeds every current target, Quarc is
+partitioned in two steps. Step 1 is the 23k-lane (BeagleV-Fire), Step 2 is the
+84k-lane (ULX3S) which moves crypto back into fabric.
+
+#### Step 1 — BeagleV-Fire, PolarFire MPFS025T (23k LEs) — crypto in C
+
+Minimal fabric; the PQ algorithms run as firmware over MMIO coprocessors.
+
+| On FPGA (RTL)                        | In C (`fw/*.c`)                       |
+| ------------------------------------ | ------------------------------------- |
+| Keccak-f[1600] (`keccak_engine.v`)   | ML-KEM-768 algorithm (`mlkem_sw.c`)   |
+| SHA-3/SHAKE wrapper (`sha3.v`)       | ML-KEM K-PKE encode/decode            |
+| NTT/iNTT + basemul (`ntt.v`)         | CBD sampling                          |
+| TRNG + DRBG (`trng.v`, `drbg.v`)     | keygen/encaps/decaps orchestration    |
+| Ibex RV32IMC soft core               | boot/secure-boot                      |
+| Wishbone bus, UART, timer, ROM, RAM  | drivers, Noise channel, dispatcher    |
+| Lifecycle + rollback counters        | command handlers                      |
+
+Hardware ML-KEM controller (`mlkem.v`), sampling datapath (`sampling.v`,
+`shake_sampler.v`), ML-DSA controller (`mldsa.v`), KUE, keystore, and SPI slave
+are **not** instantiated at this step — `mlkem_sw.c` drives `sha3.v` + `ntt.v`
+over MMIO instead.
+
+#### Step 2 — ULX3S, ECP5-85K (84k LUTs) — move crypto back into fabric
+
+With 84k LUTs, hardware accelerators return and C shrinks to a thin driver.
+
+| On FPGA (RTL) | In C (`fw/*.c`) |
+| --- | --- |
+| All of Step 1, **plus:** | Boot/secure-boot |
+| ML-KEM controller (`mlkem.v` + sampling) | Command dispatch (thin) |
+| ML-DSA controller (`mldsa.v`) | Noise channel, drivers |
+| KUE + keystore (BRAM) | No ML-KEM algorithm logic |
+| SPI slave (`spi_slave.v`) | |
+
+Hardware ML-DSA and the hardware ML-KEM datapath are the main consumers of the
+extra ~60k LUTs. Full security stack (KUE, keystore, SPI host channel, ML-DSA)
+is a Phase 5–7 concern, still in progress.
 
 ---
 
@@ -367,13 +416,17 @@ Status legend: 🟢 verified · 🟡 code complete, awaiting verification · �
 
 ### FPGA targets
 
-| Board        | FPGA                                   | Flow                           | Status                                                                                              |
-| ------------ | -------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- |
-| ULX3S        | Lattice ECP5-85K (84k LUTs)            | yosys + nextpnr-ecp5 + ecppack | Primary dev target; bitstream builds, 27 MHz                                                        |
-| BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins)    | Planned — shared Keccak keeps design ~23.2k LUTs; needs Libero port + on-chip RISC-V AXI/SPI bridge |
+| Board        | FPGA                                   | Flow                           | Partition                                                                                                            | Status                                                                                              |
+| ------------ | -------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins)    | Step 1: crypto in C (`mlkem_sw.c` over sha3+ntt MMIO); no hw ML-KEM/ML-DSA controller                                | Planned — fabric kept minimal to fit 23k; SE driven by SoC RISC-V cores (Linux) over AXI/SPI bridge |
+| ULX3S        | Lattice ECP5-85K (84k LUTs)            | yosys + nextpnr-ecp5 + ecppack | Step 2: move ML-KEM/ML-DSA/KUE/keystore/SPI back into fabric; C becomes thin driver                                 | Primary dev target; bitstream builds, 27 MHz                                                         |
 
-For the BeagleV-Fire, the SE runs in the PolarFire fabric and is driven by the SoC's own
-RISC-V cores (Linux) over an AXI/SPI bridge, replacing the external-MCU host of the ULX3S setup.
+For the BeagleV-Fire (Step 1), the SE runs in the PolarFire fabric and is driven
+by the SoC's own RISC-V cores (Linux) over an AXI/SPI bridge, replacing the
+external-MCU host of the ULX3S setup. ML-KEM runs in C on the fabric soft core,
+so the fabric footprint stays under the 23k-LUT budget. When the ULX3S is
+available (Step 2), the 84k LUTs absorb the hardware crypto controllers and the
+C layer reverts to orchestration.
 
 ---
 
