@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/* BeagleV-Fire Quarc cape overlay: identify the gateware and reserve the
+ * FIC3 APB window that exposes the Quarc Step 1 crypto fabric.
+ *
+ * The window (sha3 @ 0x4110_0000, ntt @ 0x4110_0800) is accessed from the
+ * hard cores through /dev/mem, so no Linux driver probes this node; it
+ * documents the mapping and pins the region in the device tree.
+ */
+
+/dts-v1/;
+/plugin/;
+
+&{/chosen} {
+	overlays {
+		QUARC-CAPE-GATEWARE = "GATEWARE_GIT_VERSION";
+	};
+};
+
+&{/} {
+
+	fabric-bus@40000000 {
+
+		quarc-crypto@41100000 {
+			compatible = "quarc,quarc-crypto";
+			reg = <0x0 0x41100000 0x0 0x1000>;
+			clocks = <&fabric_clk3>;
+			status = "okay";
+		};
+	};
+};

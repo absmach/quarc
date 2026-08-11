@@ -30,11 +30,16 @@ The firmware uses raw MMIO (`put32`/`get32`) into the fabric. On the Ibex SoC
 these are absolute addresses; on the BeagleV-Fire they must be re-pointed at
 the window where the MSS exposes the fabric peripherals.
 
-| Peripheral | Base (Ibex SoC) | Registers                                          |
-| ---------- | --------------- | -------------------------------------------------- |
-| sha3       | `0x1000_0000`   | CTRL, STATUS, MODE, DATA_IN, DATA_OUT, LEN, SQ_LEN |
-| ntt        | `0x1000_0800`   | CTRL, STATUS, COEFF                                |
-| uart       | `0x2000_0100`   | TX_DATA, STATUS (TXBUSY=1)                         |
+| Peripheral | Base (Ibex SoC) | Base (BeagleV-Fire) | Registers                                          |
+| ---------- | --------------- | ------------------- | -------------------------------------------------- |
+| sha3       | `0x1000_0000`   | `0x4110_0000`       | CTRL, STATUS, MODE, DATA_IN, DATA_OUT, LEN, SQ_LEN |
+| ntt        | `0x1000_0800`   | `0x4110_0800`       | CTRL, STATUS, COEFF                                |
+| uart       | `0x2000_0100`   | (Linux console)     | TX_DATA, STATUS (TXBUSY=1)                         |
+
+On the BeagleV-Fire, the cape APB slave sits at `0x4110_0000` inside the MSS
+FIC3 window (`0x4xxx_xxxx`). `fw/mlkem_sw.c` overrides its base `#define`s to
+these addresses; the `ID` word (`0x4110_0F00` = `0x5155_4152`, `"QUAR"`) is a
+read-only gateware-identity check the harness can probe before running KAT.
 
 Buffer sizes at the SoC instantiation (`rtl/bus.v`, `u_sha3`) are
 `MSG_MAX=2560` / `OUT_MAX=1024`, which cover the largest software workload:
@@ -46,7 +51,9 @@ instantiations, not the SoC.
 
 - Linux host with `cc`, `make`, and (for the SoC simulation) `sv2v`,
   `iverilog`, and `riscv32-unknown-elf-gcc`.
-- BeagleV-Fire reachable over SSH (`ssh quarc@<ip>`).
+- BeagleV-Fire reachable over SSH (`ssh beagle@192.168.100.33`, password
+  `beagletemppwd`; sudo via `echo beagletemppwd | sudo -S`). Verified against
+  a Debian 13 (Trixie) riscv64 image, kernel 6.12.48-linux4microchip+fpga.
 
 ## 1. Host-side self-test (no hardware required)
 
@@ -103,39 +110,98 @@ for real (non-KAT) keygen.
 
 ## 4. BeagleV-Fire board bring-up
 
-The steps below assume the fabric image and the firmware are built on the
-host and moved over SSH. Board-side details (fabric MMIO window in the MSS
-address map, physical UART routing, boot loader flow) are board bring-up work
-and are marked **[TODO]** where the repo has no pinned-down recipe yet.
+The Step 1 crypto fabric is wrapped as a **cape** for the board's gateware
+builder. The cape exposes the fabric behind a single APB slave window
+(`0x4110_0000`, 4 KiB) that the hard RISC-V cores drive from Linux via
+`/dev/mem` — the same access the `tools/board/devmem_probe.c` probe validated
+against the stock PWM registers.
 
-### 4.1 Program the Step 1 gateware into the PolarFire fabric
+The cape lives in `boards/beaglev-fire/gateware/` and mirrors the component
+layout the BeagleV-Fire gateware builder expects:
 
-1. Run `make synth-step1` on the host (Section 3) and take the netlist /
-   resource report to the PolarFire flow.
-2. **[TODO]** Constrain and place: no PolarFire PDC pin constraints or
-   Libero project live in the repo yet — only `boards/ulx3s.lpf` (ECP5).
-   Create `boards/beaglev-fire.pdc` mapping `clk_25mhz`, `uart_tx`, `uart_rx`
-   and the fabric-MMIO AXI bridge to the MPFS025T pins.
-3. **[TODO]** Map the fabric peripherals into the MSS address space so the
-   hard cores can reach `sha3`/`ntt`/`uart` (the base addresses in the table
-   above, or a re-pointed window).
-4. Program the fabric image (Libero bitstream/SSB flow, or the board's
-   `mpfs`-based loader) and reboot.
+```
+boards/beaglev-fire/gateware/
+├── QUARC-CAPE.yaml                       # build-args: CAPE_OPTION:QUARC
+└── sources/FPGA-design/script_support/components/CAPE/QUARC/
+    ├── ADD_CAPE.tcl                      # imports HDL, instantiates CAPE
+    ├── constraints/cape.pdc              # no cape-header pins (empty)
+    ├── device-tree-overlay/quarc-cape.dtso   # reserves 0x4110_0000 window
+    └── HDL/
+        ├── CAPE.v                        # cape top: APB slave only
+        ├── apb_quarc.v                   # APB3 <-> crypto bus bridge
+        ├── sha3.v ntt.v keccak.v keccak_engine.v ntt_zetas.vh
+```
 
-### 4.2 Build and run the ML-KEM KAT self-test on the hard cores
+Cape window register map (`paddr[11:0]`):
+
+| Offset    | Access | Content                       |
+| --------- | ------ | ----------------------------- |
+| `0x0000`–`0x001F` | sha3 | CTRL, STATUS, MODE, DATA_IN, DATA_OUT, LEN, SQ_LEN, IRQ_EN |
+| `0x0800`–`0x081F` | ntt  | CTRL, STATUS, COEFF           |
+| `0x0F00`  | RO     | `ID` = `0x5155_4152` (`"QUAR"`) |
+| `0x0F04`  | RO     | `VER` = `0x0001_0000`         |
+
+The bridge strobes the peripherals on the APB setup phase (`psel && !penable`)
+so each transfer commits once, and drives `PRDATA` combinationally from the
+peripherals' read bus; the synchronous `DATA_OUT`/`COEFF` reads are latched on
+the setup edge and are stable through the access phase.
+
+### 4.1 Build the Step 1 gateware (cape bitstream)
+
+1. Put the cape into a BeagleV-Fire gateware repo (a fork of
+   `git.beagleboard.org/beaglev-fire/BeagleV-Fire-gateware`, or the mirrored
+   `github.com/ammitra/BeagleVFire_gateware` used during bring-up):
+   ```
+   cp -r boards/beaglev-fire/gateware/sources/FPGA-design/script_support/components/CAPE/QUARC \
+      <gateware>/sources/FPGA-design/script_support/components/CAPE/QUARC
+   cp boards/beaglev-fire/gateware/QUARC-CAPE.yaml <gateware>/custom-fpga-design/quarc.yaml
+   ```
+2. Build a bitstream. Easiest is the gateware CI (push the fork, take the
+   `my_custom_fpga_design` artifact). Locally, run the Libero CLI flow with the
+   design selected (requires Microchip Libero SoC v2022.3+):
+   ```
+   cd <gateware>/sources/FPGA-design
+   libero SCRIPT:BUILD_BVF_GATEWARE.tcl "SCRIPT_ARGS: M2_OPTION:NONE CAPE_OPTION:QUARC ONLY_CREATE_DESIGN"
+   ```
+   Drop `ONLY_CREATE_DESIGN` to run the full synth/place/route and export
+   `LinuxProgramming/mpfs_bitstream.spi` + `mpfs_dtbo.spi`.
+   **Note:** the cape TCL (`ADD_CAPE.tcl`) is untested against a real Libero
+   run yet — expect pin-out or MSS-connection tweaks on first build.
+
+### 4.2 Program the board
+
+1. `scp -r <gateware>/bitstream/BeagleV-Fire-gateware/LinuxProgramming beagle@<ip>:~/`
+2. On the board:
+   ```
+   echo beagletemppwd | sudo -S /usr/share/beagleboard/gateware/change-gateware.sh ~/LinuxProgramming
+   sudo reboot
+   ```
+   This re-flashes the SPI NOR (`/dev/mtd0`) via the firmware-loader sysfs
+   node (`/sys/class/firmware/mpfs-auto-update/`) and repacks the DT overlays
+   (`mpfs_dtbo.spi` includes `quarc-cape.dtso`).
+3. Verify the gateware is live:
+   ```
+   sudo devmem2 0x41100F00 w     # expect 0x51554152  ("QUAR")
+   sudo devmem2 0x41100F04 w     # expect 0x00010000
+   ```
+   (`devmem2` may need `apt install devmem2`, or use `tools/board/devmem_probe.c`.)
+
+### 4.3 Build and run the ML-KEM KAT self-test on the hard cores
 
 `mlkem_sw.c` is written for a bare-metal target and hardcodes the Ibex SoC
 MMIO bases. Two ways to run it on the board:
 
-- **Bare-metal / second stage** — compile with the RISC-V GNU toolchain
-  (`riscv64-unknown-elf-gcc -march=rv64gc -mabi=lp64d`, no libc) and run from
-  the hard-core boot path. Override the three base `#define`s at the top of
-  `fw/mlkem_sw.c` to the fabric window from step 4.1.3, keep the algorithm
-  unchanged. The firmware comment describes this override point.
-- **Userspace harness** — map the fabric MMIO window with `mmap`/`/dev/mem`
-  and provide `host_put32`/`host_get32` shims (`-DHOST_TEST`), reusing
-  `host_emu.c`'s access pattern. This exercises the same self-test code
-  without a bare-metal boot chain.
+- **Userspace harness (recommended first)** — map `0x4110_0000` with
+  `mmap`/`/dev/mem` and provide `host_put32`/`host_get32` shims
+  (`-DHOST_TEST`), reusing `tools/host_test/host_emu.c`'s access pattern but
+  with the fabric MMIO bases (`SHA3_BASE 0x41100000`, `NTT_BASE 0x41100800`).
+  The self-test prints `MLKEM SW OK` to stdout. This exercises the exact
+  firmware code without a bare-metal boot chain.
+- **Bare-metal / second stage** — compile with
+  `riscv64-unknown-elf-gcc -march=rv64gc -mabi=lp64d` and run from the hard-core
+  boot path, with the three base `#define`s at the top of `fw/mlkem_sw.c`
+  overridden to the fabric window and the UART output routed to the Linux
+  console port.
 
 Either way the self-test is `main()` (`mlkem_self_test`): keygen → encaps →
 decaps against the FIPS 203 KATs in `fw/mlkem_kat.h`, then prints
@@ -144,13 +210,16 @@ decaps against the FIPS 203 KATs in `fw/mlkem_kat.h`, then prints
 MLKEM SW OK
 ```
 
-over the UART at 115200 baud. A `MLKEM SW FAIL` means a firmware/MMIO bug or
-a fabric image that does not match the buffers described in Section 1.
+A `MLKEM SW FAIL` means a firmware/MMIO bug or a fabric image that does not
+match the buffers described in Section 1.
 
-### 4.3 Expected bring-up checklist
+### 4.4 Expected bring-up checklist
 
 - [ ] `make run` in `tools/host_test` prints `HOST KAT: PASS` (Section 1).
 - [ ] `make sim-mlkem-sw-soc` prints `MLKEM SW OK` in simulation (Section 2).
 - [ ] `make synth-step1` reports the Section 3 fit.
-- [ ] Fabric image programs and boots on the board.
-- [ ] Board run prints `MLKEM SW OK` on the UART.
+- [ ] Quarc cape builds in Libero (`CAPE_OPTION:QUARC`) and exports
+      `mpfs_bitstream.spi` + `mpfs_dtbo.spi`.
+- [ ] `change-gateware.sh` re-flashes the board and it reboots into the
+      Quarc gateware (`0x4110_0F00` reads `"QUAR"`).
+- [ ] Board harness run prints `MLKEM SW OK`.

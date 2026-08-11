@@ -1,0 +1,22 @@
+---
+# BeagleV-Fire gateware build config for the Quarc Step 1 cape.
+#
+# Drop this file into the gateware repo's custom-fpga-design/ directory
+# (alongside my_custom_fpga_design.yaml) and run the bitstream builder, or
+# point it at the Quarc cape:
+#
+#   cp boards/beaglev-fire/gateware/sources/FPGA-design/script_support/components/CAPE/QUARC \
+#      <gateware>/sources/FPGA-design/script_support/components/CAPE/QUARC
+#   cp boards/beaglev-fire/gateware/QUARC-CAPE.yaml \
+#      <gateware>/custom-fpga-design/quarc.yaml
+#   cd <gateware> && python3 build-bitstream.py quarc.yaml          # or CI
+#
+# The cape APB window then lives at 0x4110_0000 (see the cape's quarc-cape.dtso).
+HSS:
+    type: git
+    link: https://openbeagle.org/beaglev-fire/hart-software-services.git
+    branch: main-beaglev-fire
+    board: bvf
+gateware:
+    type: sources
+    build-args: "M2_OPTION:NONE CAPE_OPTION:QUARC"

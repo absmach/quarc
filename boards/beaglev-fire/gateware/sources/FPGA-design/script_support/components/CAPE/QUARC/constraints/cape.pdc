@@ -1,0 +1,6 @@
+# Quarc cape: no cape-header I/O, GPIO, or fabric interrupts are used.
+# The entire design is an APB slave window (FIC3, 0x4110_0000) into the
+# Quarc Step 1 crypto fabric, so this constraint file intentionally carries
+# no set_io commands. Keep this file present: BUILD_BVF_GATEWARE.tcl imports
+# it unconditionally via
+#   -io_pdc "./script_support/components/CAPE/$cape_option/constraints/cape.pdc"
