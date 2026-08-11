@@ -13,9 +13,19 @@
 // KATs embedded in mlkem_kat.h and prints "MLKEM SW OK" / "MLKEM SW FAIL".
 //
 // The same file compiles for the BeagleV-Fire hard RISC-V cores (RV64GC) by
-// overriding MLKEM_CRYPTO_BASE and keeping the algorithm unchanged.
+// overriding the MMIO bases (see BVF_MMIO below) and keeping the algorithm
+// unchanged.
 
+#ifdef BVF_MMIO
+// BeagleV-Fire cape build: the Quarc crypto fabric lives in the FIC3 APB
+// window (sha3 @ 0x4110_0000, ntt @ 0x4110_0800) and is reached from Linux
+// through /dev/mem.
+#define SHA3_BASE     0x41100000u
+#define NTT_BASE      0x41100800u
+#else
 #define SHA3_BASE     0x10000000u
+#define NTT_BASE      0x10000800u
+#endif
 #define SHA3_CTRL     0x00
 #define SHA3_STATUS   0x04
 #define SHA3_MODE     0x08
@@ -24,7 +34,6 @@
 #define SHA3_LEN      0x14
 #define SHA3_SQ_LEN   0x18
 
-#define NTT_BASE      0x10000800u
 #define NTT_CTRL      0x00
 #define NTT_STATUS    0x04
 #define NTT_COEFF     0x08
@@ -58,7 +67,45 @@ typedef unsigned char  u8;
 // ---------------------------------------------------------------------------
 // MMIO access
 // ---------------------------------------------------------------------------
-#ifdef HOST_TEST
+#ifdef BVF_MMIO
+// BeagleV-Fire build: 32-bit MMIO through an mmap of /dev/mem. Both fabric
+// bases share one 4 KiB page (0x4110_0000), so a single mapping suffices.
+// Run as root (sudo) to open /dev/mem. Requires root, so we check at entry.
+#include <fcntl.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
+static volatile uint8_t *bvf_mem = (volatile uint8_t *)0;
+static int               bvf_fd  = -1;
+
+static int bvf_open(void)
+{
+    uintptr_t page = (uintptr_t)(SHA3_BASE & ~0xFFFu);
+    if (bvf_mem) return 0;                    // already mapped
+    bvf_fd = open("/dev/mem", O_RDWR | O_SYNC);
+    if (bvf_fd < 0) return -1;
+    bvf_mem = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED,
+                   bvf_fd, (off_t)page);
+    if (bvf_mem == MAP_FAILED) {
+        bvf_mem = (volatile uint8_t *)0;
+        close(bvf_fd);
+        bvf_fd = -1;
+        return -1;
+    }
+    return 0;
+}
+
+static inline void put32(u32 addr, u32 val)
+{
+    *(volatile u32 *)(bvf_mem + ((uintptr_t)addr - (uintptr_t)(SHA3_BASE & ~0xFFFu))) = val;
+}
+static inline u32 get32(u32 addr)
+{
+    return *(volatile u32 *)(bvf_mem + ((uintptr_t)addr - (uintptr_t)(SHA3_BASE & ~0xFFFu)));
+}
+#elif defined(HOST_TEST)
 // Host-side build: the test harness emulates the sha3/ntt/UART peripherals.
 extern void host_put32(u32 addr, u32 val);
 extern u32  host_get32(u32 addr);
@@ -449,11 +496,20 @@ implicit_reject:                                  // J(z || c)
 // ---------------------------------------------------------------------------
 // UART
 // ---------------------------------------------------------------------------
+#ifdef BVF_MMIO
+// Board build: firmware banner goes to the Linux console.
+static void uart_putc(u8 ch)
+{
+    fputc(ch, stdout);
+    fflush(stdout);
+}
+#else
 static void uart_putc(u8 ch)
 {
     while (get32(UART_BASE + UART_STATUS) & UART_TXBUSY) ;
     put32(UART_BASE + UART_TX_DATA, ch);
 }
+#endif
 
 static void uart_puts(const char *s)
 {
@@ -480,6 +536,12 @@ static int mlkem_self_test(void)
 int main(void)
 #endif
 {
+#ifdef BVF_MMIO
+    if (bvf_open() != 0) {
+        fprintf(stderr, "open /dev/mem failed (run as root)\n");
+        return 1;
+    }
+#endif
     int i;
     u8 fail = 0;
 

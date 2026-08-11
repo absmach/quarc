@@ -167,6 +167,10 @@ the setup edge and are stable through the access phase.
    `LinuxProgramming/mpfs_bitstream.spi` + `mpfs_dtbo.spi`.
    **Note:** the cape TCL (`ADD_CAPE.tcl`) is untested against a real Libero
    run yet — expect pin-out or MSS-connection tweaks on first build.
+   **Note:** before the Libero run, the cape bridge is validated in simulation
+   with `boards/beaglev-fire/gateware/tb_apb_quarc.sv` (run `iverilog` from the
+   repo root; 269 checks: ID/VER, SHA3-256 digest, and the 256-coefficient NTT
+   forward KAT through the APB setup-edge read path).
 
 ### 4.2 Program the board
 
@@ -188,27 +192,35 @@ the setup edge and are stable through the access phase.
 
 ### 4.3 Build and run the ML-KEM KAT self-test on the hard cores
 
-`mlkem_sw.c` is written for a bare-metal target and hardcodes the Ibex SoC
-MMIO bases. Two ways to run it on the board:
+`fw/mlkem_sw.c` drives the sha3/ntt coprocessors over MMIO. For the board it
+is built with `-DBVF_MMIO`, which
+- redirects `put32`/`get32` through an `mmap` of `/dev/mem` (the two fabric
+  bases share the single 4 KiB page at `0x4110_0000`), and
+- re-bases `SHA3_BASE`/`NTT_BASE` to `0x4110_0000` / `0x4110_0800`, and
+- routes the banner to stdout instead of the SoC UART.
 
-- **Userspace harness (recommended first)** — map `0x4110_0000` with
-  `mmap`/`/dev/mem` and provide `host_put32`/`host_get32` shims
-  (`-DHOST_TEST`), reusing `tools/host_test/host_emu.c`'s access pattern but
-  with the fabric MMIO bases (`SHA3_BASE 0x41100000`, `NTT_BASE 0x41100800`).
-  The self-test prints `MLKEM SW OK` to stdout. This exercises the exact
-  firmware code without a bare-metal boot chain.
-- **Bare-metal / second stage** — compile with
-  `riscv64-unknown-elf-gcc -march=rv64gc -mabi=lp64d` and run from the hard-core
-  boot path, with the three base `#define`s at the top of `fw/mlkem_sw.c`
-  overridden to the fabric window and the UART output routed to the Linux
-  console port.
-
-Either way the self-test is `main()` (`mlkem_self_test`): keygen → encaps →
-decaps against the FIPS 203 KATs in `fw/mlkem_kat.h`, then prints
+The self-test is `main()` (`mlkem_self_test`): keygen → encaps → decaps
+against the FIPS 203 KATs in `fw/mlkem_kat.h`, then prints
 
 ```
 MLKEM SW OK
 ```
+
+Build on the board (or cross-compile with `CC=riscv64-linux-gnu-gcc`) and run
+as root:
+
+```
+cd tools/board
+make
+sudo ./devmem_probe 0x41100000 8      # expect "QUAR" ID at 0x41100F00 (words 15-16)
+sudo ./quarc_kat
+```
+
+`MLKEM SW OK` exercises the full algorithm against the real cape fabric: every
+SHA3/SHAKE squeeze the KAT needs fits the cape sizing (max absorb 1184 B
+`H(ek)`, max squeeze 768 B SampleNTT; `MSG_MAX 2560` / `OUT_MAX 1024`), and
+the NTT driver follows the pointer-reset protocol (`CTRL` write before each
+fresh polynomial load) that `tb_apb_quarc.sv` validates.
 
 A `MLKEM SW FAIL` means a firmware/MMIO bug or a fabric image that does not
 match the buffers described in Section 1.
