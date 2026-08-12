@@ -16,15 +16,14 @@
 	};
 };
 
-&{/} {
+&{/fabric-bus@40000000} {
+	#address-cells = <2>;
+	#size-cells = <2>;
 
-	fabric-bus@40000000 {
-
-		quarc-crypto@41100000 {
-			compatible = "quarc,quarc-crypto";
-			reg = <0x0 0x41100000 0x0 0x1000>;
-			clocks = <&fabric_clk3>;
-			status = "okay";
-		};
+	quarc-crypto@41100000 {
+		compatible = "quarc,quarc-crypto";
+		reg = <0x0 0x41100000 0x0 0x1000>;
+		clocks = <&fabric_clk3>;
+		status = "okay";
 	};
 };

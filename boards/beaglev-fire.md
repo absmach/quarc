@@ -123,14 +123,22 @@ layout the BeagleV-Fire gateware builder expects:
 boards/beaglev-fire/gateware/
 ├── QUARC-CAPE.yaml                       # build-args: CAPE_OPTION:QUARC
 └── sources/FPGA-design/script_support/components/CAPE/QUARC/
-    ├── ADD_CAPE.tcl                      # imports HDL, instantiates CAPE
-    ├── constraints/cape.pdc              # no cape-header pins (empty)
-    ├── device-tree-overlay/quarc-cape.dtso   # reserves 0x4110_0000 window
+    ├── ADD_CAPE.tcl                      # BIF + MSS wiring, instantiates CAPE
+    ├── constraints/mpfs-beaglev-fire/cape.pdc  # no cape-header pins (empty)
+    ├── device-tree-overlays/quarc-cape.dtso    # reserves 0x4110_0000 window
     └── HDL/
         ├── CAPE.v                        # cape top: APB slave only
         ├── apb_quarc.v                   # APB3 <-> crypto bus bridge
         ├── sha3.v ntt.v keccak.v keccak_engine.v ntt_zetas.vh
 ```
+
+The layout follows the gateware repo's current `main`, which (since the
+v2022.3-era mirror used for bring-up) auto-globs `HDL/*.v`, expects the cape
+constraints at `constraints/<board>/cape.pdc` (`board = mpfs-beaglev-fire` for
+openbeagle CI fork builds), gathers the overlay from `device-tree-overlays/`,
+and has the cape `ADD_CAPE.tcl` sourced from the MSS recursive build with a
+`MSS_INT_F2M[58:0]` bus (sliced, unused bits GND-tied) instead of the old
+`MSS_INT_F2M_A/B/C` pins.
 
 Cape window register map (`paddr[11:0]`):
 
@@ -148,33 +156,50 @@ the setup edge and are stable through the access phase.
 
 ### 4.1 Build the Step 1 gateware (cape bitstream)
 
-1. Put the cape into a BeagleV-Fire gateware repo (a fork of
-   `git.beagleboard.org/beaglev-fire/BeagleV-Fire-gateware`, or the mirrored
-   `github.com/ammitra/BeagleVFire_gateware` used during bring-up):
+The recommended path needs no local Libero: the openbeagle GitLab CI builds a
+bitstream for every yaml in `custom-fpga-design/` on their Libero runner
+(v2024.2/v2025.2). This is the flow described in the BeagleBoard docs
+("Customize BeagleV-Fire Cape Gateware Using Verilog").
+
+1. Fork `openbeagle.org/beaglev-fire/gateware` (new GitLab users must be
+   manually approved before they can fork — request via the forum thread linked
+   in the docs).
+2. Add the cape and the build config to the fork:
    ```
    cp -r boards/beaglev-fire/gateware/sources/FPGA-design/script_support/components/CAPE/QUARC \
-      <gateware>/sources/FPGA-design/script_support/components/CAPE/QUARC
-   cp boards/beaglev-fire/gateware/QUARC-CAPE.yaml <gateware>/custom-fpga-design/quarc.yaml
+      <fork>/sources/FPGA-design/script_support/components/CAPE/QUARC
+   cp boards/beaglev-fire/gateware/QUARC-CAPE.yaml <fork>/custom-fpga-design/quarc.yaml
    ```
-2. Build a bitstream. Easiest is the gateware CI (push the fork, take the
-   `my_custom_fpga_design` artifact). Locally, run the Libero CLI flow with the
-   design selected (requires Microchip Libero SoC v2022.3+):
+   The yaml mirrors current `main`'s `my_custom_fpga_design.yaml` (pinned HSS
+   with patches + `MSS: local: sources/FPGA-design/mss.bundle`), only with
+   `CAPE_OPTION:QUARC`. The CI passes `BOARD:mpfs-beaglev-fire` for forks, so
+   the cape constraint must live under `constraints/mpfs-beaglev-fire/`.
+3. Commit and push. The `build-job` runner produces an artifact containing
+   `artifacts/bitstreams/quarc/LinuxProgramming/{mpfs_bitstream.spi,mpfs_dtbo.spi}`
+   (the `quarc` name follows the yaml filename; `mpfs_dtbo.spi` includes
+   `quarc-cape.dtso`).
+4. (Optional, for local iteration) With Microchip Libero SoC v2022.3–v2025.2
+   installed, the same cape builds locally:
    ```
-   cd <gateware>/sources/FPGA-design
-   libero SCRIPT:BUILD_BVF_GATEWARE.tcl "SCRIPT_ARGS: M2_OPTION:NONE CAPE_OPTION:QUARC ONLY_CREATE_DESIGN"
+   cd <fork>/sources/FPGA-design
+   libero SCRIPT:BUILD_BVF_GATEWARE.tcl "SCRIPT_ARGS: M2_OPTION:NONE CAPE_OPTION:QUARC BOARD:mpfs-beaglev-fire ONLY_CREATE_DESIGN"
    ```
-   Drop `ONLY_CREATE_DESIGN` to run the full synth/place/route and export
-   `LinuxProgramming/mpfs_bitstream.spi` + `mpfs_dtbo.spi`.
-   **Note:** the cape TCL (`ADD_CAPE.tcl`) is untested against a real Libero
-   run yet — expect pin-out or MSS-connection tweaks on first build.
+   Drop `ONLY_CREATE_DESIGN` to run the full synth/place/route and export the
+   `LinuxProgramming` bitstreams.
+   **Note:** the cape `ADD_CAPE.tcl` is written against current `main`'s
+   template but is untested against a real Libero run yet — expect MSS
+   connection tweaks on first build.
    **Note:** before the Libero run, the cape bridge is validated in simulation
-   with `boards/beaglev-fire/gateware/tb_apb_quarc.sv` (run `iverilog` from the
-   repo root; 269 checks: ID/VER, SHA3-256 digest, and the 256-coefficient NTT
+   with `boards/beaglev-fire/gateware/tb_apb_quarc.sv` (run `iverilog` against
+   `.../CAPE/QUARC/HDL/`; 269 checks: ID/VER, SHA3-256 digest, and the
+   256-coefficient NTT
    forward KAT through the APB setup-edge read path).
 
 ### 4.2 Program the board
 
-1. `scp -r <gateware>/bitstream/BeagleV-Fire-gateware/LinuxProgramming beagle@<ip>:~/`
+1. Download the CI artifact (`build-job:archive`), unzip, and scp the per-design
+   `LinuxProgramming` dir to the board:
+   `scp -r artifacts/bitstreams/quarc/LinuxProgramming beagle@<ip>:~/`
 2. On the board:
    ```
    echo beagletemppwd | sudo -S /usr/share/beagleboard/gateware/change-gateware.sh ~/LinuxProgramming

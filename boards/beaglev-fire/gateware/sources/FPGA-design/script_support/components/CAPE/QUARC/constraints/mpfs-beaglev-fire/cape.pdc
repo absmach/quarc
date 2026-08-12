@@ -3,4 +3,5 @@
 # Quarc Step 1 crypto fabric, so this constraint file intentionally carries
 # no set_io commands. Keep this file present: BUILD_BVF_GATEWARE.tcl imports
 # it unconditionally via
-#   -io_pdc "./script_support/components/CAPE/$cape_option/constraints/cape.pdc"
+#   -io_pdc "./script_support/components/CAPE/$cape_option/constraints/$board/cape.pdc"
+# ($board = mpfs-beaglev-fire for openbeagle CI fork builds).

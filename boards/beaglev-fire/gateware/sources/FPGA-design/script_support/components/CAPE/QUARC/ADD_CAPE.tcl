@@ -1,17 +1,5 @@
 puts "======== Add cape option: QUARC ========"
 
-#-------------------------------------------------------------------------------
-# Import HDL source files
-#-------------------------------------------------------------------------------
-import_files -hdl_source {script_support/components/CAPE/QUARC/HDL/apb_quarc.v}
-import_files -hdl_source {script_support/components/CAPE/QUARC/HDL/sha3.v}
-import_files -hdl_source {script_support/components/CAPE/QUARC/HDL/ntt.v}
-import_files -hdl_source {script_support/components/CAPE/QUARC/HDL/keccak.v}
-import_files -hdl_source {script_support/components/CAPE/QUARC/HDL/keccak_engine.v}
-import_files -hdl_source {script_support/components/CAPE/QUARC/HDL/CAPE.v}
-
-build_design_hierarchy
-
 create_hdl_core -file $project_dir/hdl/CAPE.v -module {CAPE} -library {work} -package {}
 
 hdl_core_add_bif -hdl_core_name {CAPE} -bif_definition {APB:AMBA:AMBA2:slave} -bif_name {BIF_1} -signal_map {} 
@@ -29,8 +17,23 @@ hdl_core_rename_bif -hdl_core_name {CAPE} -current_bif_name {BIF_1} -new_bif_nam
 set sd_name ${top_level_name}
 
 #-------------------------------------------------------------------------------
+# Transform the RISCV_SUBSYSTEM
+#-------------------------------------------------------------------------------
+set sd_name {BVF_RISCV_SUBSYSTEM}
+
+adapter::remove_pin "SPI_1_SS1"
+adapter::remove_pin "SPI_1_CLK"
+adapter::remove_pin "SPI_1_DI"
+adapter::remove_pin "SPI_1_DO"
+
+save_smartdesign -sd_name ${sd_name}
+sd_update_instance -sd_name ${top_level_name} -instance_name ${sd_name}
+generate_component -component_name ${sd_name}
+
+#-------------------------------------------------------------------------------
 # Instantiate.
 #-------------------------------------------------------------------------------
+set sd_name ${top_level_name}
 sd_instantiate_hdl_core -sd_name ${sd_name} -hdl_core_name {CAPE} -instance_name {CAPE} 
 
 #-------------------------------------------------------------------------------
@@ -49,12 +52,11 @@ sd_connect_pins_to_constant -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:
 sd_mark_pins_unused -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:GPIO_2_M2F} 
 sd_mark_pins_unused -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:GPIO_2_OE_M2F} 
 
-sd_clear_pin_attributes -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M_A} 
-sd_clear_pin_attributes -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M_B} 
-sd_clear_pin_attributes -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M_C} 
-sd_mark_pins_unused -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M_A} 
-sd_mark_pins_unused -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M_B} 
-sd_mark_pins_unused -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M_C} 
-
 sd_mark_pins_unused -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MMUART_4_TXD} 
 sd_connect_pins_to_constant -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MMUART_4_RXD} -value {GND} 
+
+sd_clear_pin_attributes -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M} 
+sd_create_pin_slices -sd_name ${sd_name} -pin_name {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M} -pin_slices {[7:3] [31:8] [58:32]}
+sd_connect_pins_to_constant -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M[31:8]} -value {GND}
+sd_connect_pins_to_constant -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M[7:3]} -value {GND}
+sd_connect_pins_to_constant -sd_name ${sd_name} -pin_names {BVF_RISCV_SUBSYSTEM:MSS_INT_F2M[58:32]} -value {GND}

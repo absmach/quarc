@@ -1,22 +1,36 @@
 ---
 # BeagleV-Fire gateware build config for the Quarc Step 1 cape.
 #
-# Drop this file into the gateware repo's custom-fpga-design/ directory
-# (alongside my_custom_fpga_design.yaml) and run the bitstream builder, or
-# point it at the Quarc cape:
+# Drop this file into the gateware repo's custom-fpga-design/ directory as
+# quarc.yaml and push the fork: the openbeagle CI builds a bitstream for every
+# yaml in that directory (docs: customize-cape-gateware-verilog.html).
 #
-#   cp boards/beaglev-fire/gateware/sources/FPGA-design/script_support/components/CAPE/QUARC \
-#      <gateware>/sources/FPGA-design/script_support/components/CAPE/QUARC
 #   cp boards/beaglev-fire/gateware/QUARC-CAPE.yaml \
 #      <gateware>/custom-fpga-design/quarc.yaml
-#   cd <gateware> && python3 build-bitstream.py quarc.yaml          # or CI
+#   cp -r boards/beaglev-fire/gateware/sources/FPGA-design/script_support/components/CAPE/QUARC \
+#      <gateware>/sources/FPGA-design/script_support/components/CAPE/QUARC
+#   cd <gateware> && git add ... && git push
 #
-# The cape APB window then lives at 0x4110_0000 (see the cape's quarc-cape.dtso).
+# The cape APB window then lives at 0x4110_0000 (see the cape's
+# device-tree-overlays/quarc-cape.dtso). HSS/MSS sections mirror the current
+# my_custom_fpga_design.yaml reference for main.
 HSS:
     type: git
-    link: https://openbeagle.org/beaglev-fire/hart-software-services.git
-    branch: main-beaglev-fire
-    board: bvf
+    link: https://github.com/polarfire-soc/hart-software-services.git
+    branch: next
+    commit: 4bea7e24f3e5ef1de360a80b0a27abb1eb6134e0
+    patches:
+        common:
+            - 0001-Disable-annoying-debug-message.patch
+            - 0002-Bring-back-old-DESIGNVER-formatting.patch
+        variants:
+            default:
+                - 0003-IOMUX-SPI-1-drives-pins-30-32-and-33.patch
+    make_clean: 1
+MSS:
+    type: git
+    local: sources/FPGA-design/mss.bundle
+    branch: default
 gateware:
     type: sources
     build-args: "M2_OPTION:NONE CAPE_OPTION:QUARC"
