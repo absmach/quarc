@@ -1,0 +1,13 @@
+[options]
+mode bmc
+depth 40
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -sv -D FORMAL -D QUARC_SIM trng.v
+prep -top trng
+
+[files]
+rtl/trng.v

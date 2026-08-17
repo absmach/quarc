@@ -64,16 +64,26 @@ module quarc_bus (
     assign data_gnt  = data_req;
 
     // ── Instruction port: route to Boot ROM ──────────────────────────────────
+    // The data port also maps the ROM region (read-only) so C firmware can
+    // read its .rodata/.data constants from memory instead of immediates.
     wire        rom_instr_req   = instr_req && (instr_addr[31:16] == 16'h0000);
+    wire        rom_data_req    = data_req && !data_we && (data_addr[31:16] == 16'h0000);
     wire        rom_instr_rvalid;
     wire [31:0] rom_instr_rdata;
+    wire        rom_data_rvalid;
+    wire [31:0] rom_data_rdata;
 
     boot_rom u_boot_rom (
-        .clk    (clk),
-        .req    (rom_instr_req),
-        .addr   (instr_addr),
-        .rvalid (rom_instr_rvalid),
-        .rdata  (rom_instr_rdata)
+        .clk         (clk),
+        .rst_n       (rst_n),
+        .instr_req   (rom_instr_req),
+        .instr_addr  (instr_addr),
+        .instr_rvalid(rom_instr_rvalid),
+        .instr_rdata (rom_instr_rdata),
+        .data_req    (rom_data_req),
+        .data_addr   (data_addr),
+        .data_rvalid (rom_data_rvalid),
+        .data_rdata  (rom_data_rdata)
     );
 
     // Track unmapped instruction fetches: deliver a bubble (rvalid+rdata=0)
@@ -94,13 +104,31 @@ module quarc_bus (
 
     // ── Data port decode ─────────────────────────────────────────────────────
     // High-level decode by addr[31:24]:
+    //   0x10 -> crypto region (Keccak/SHA-3 at 0x1000_0000)
     //   0x20 -> peripheral region (SPI/UART/Timer)
     //   else -> bus_err
-    // Within 0x20 region, addr[15:8] selects device.
+    // Within each region, addr[15:8] selects the device.
+    wire data_crypto_sel = (data_addr[31:24] == 8'h10);
     wire data_periph_sel = (data_addr[31:24] == 8'h20);
+    wire data_ram_sel    = (data_addr[31:16] == 16'h0001) && (data_addr[15:14] == 2'b01 || data_addr[15:14] == 2'b10);
+    wire data_rom_sel    = (data_addr[31:16] == 16'h0000) && !data_we;
     wire uart_sel        = data_periph_sel && (data_addr[15:8] == 8'h01);
     wire timer_sel       = data_periph_sel && (data_addr[15:8] == 8'h02);
     wire spi_sel         = data_periph_sel && (data_addr[15:8] == 8'h00);
+    wire sha3_sel        = data_crypto_sel && (data_addr[15:8] == 8'h00);
+    wire ntt_sel         = data_crypto_sel && (data_addr[15:8] == 8'h08);
+    wire mlkem_sel       = data_crypto_sel && (data_addr[15:8] == 8'h09);
+
+    // ML-KEM controller wires (0x1000_0900)
+    wire        mlkem_ack, mlkem_irq;
+    wire [31:0] mlkem_rdata;
+    wire        mlkem_s_req, mlkem_h_req;
+    wire [1599:0] mlkem_s_state_in, mlkem_h_state_in;
+    wire        mlkem_s_done, mlkem_h_done;
+    wire [1599:0] mlkem_s_state_out, mlkem_h_state_out;
+    wire        mlkem_n_req, mlkem_n_we, mlkem_n_ack;
+    wire [7:0]  mlkem_n_addr;
+    wire [31:0] mlkem_n_wdata, mlkem_n_rdata;
 
     // Local 8-bit register offset for each peripheral
     wire [7:0] periph_addr = data_addr[7:0];
@@ -144,7 +172,88 @@ module quarc_bus (
     );
 
     assign irq_timer    = timer_irq;
-    assign irq_external = uart_irq;
+
+    // Shared Keccak engine client wires (declared before use)
+    wire             sha3_perm_req;
+    wire [1599:0]    sha3_perm_state_in;
+    wire             sha3_perm_done;
+    wire [1599:0]    sha3_perm_state_out;
+
+    // NTT wires (declared before use in irq_external)
+    wire        ntt_ack;
+    wire [31:0] ntt_rdata;
+    wire        ntt_irq;
+
+    // ── SHA-3 / SHAKE (base 0x1000_0000) ─────────────────────────────────────
+    // OUT_MAX >= 768 (SampleNTT squeeze), MSG_MAX >= 2272 (H(c||ek) in decaps)
+    wire        sha3_ack;
+    wire [31:0] sha3_rdata;
+    wire        sha3_irq;
+
+    sha3 #(
+        .OUT_MAX(1024),
+        .MSG_MAX(2560)
+    ) u_sha3 (
+        .clk       (clk),
+        .rst_n     (rst_n),
+        .bus_req   (data_req && sha3_sel),
+        .bus_we    (data_we),
+        .bus_addr  (data_addr[7:0]),
+        .bus_wdata (data_wdata),
+        .bus_rdata (sha3_rdata),
+        .bus_ack   (sha3_ack),
+        .irq_done  (sha3_irq),
+        .perm_req       (sha3_perm_req),
+        .perm_state_in  (sha3_perm_state_in),
+        .perm_done      (sha3_perm_done),
+        .perm_state_out (sha3_perm_state_out)
+    );
+    assign irq_external = uart_irq | sha3_irq | ntt_irq;
+
+    // ── NTT (base 0x1000_0800) ───────────────────────────────────────────────
+    ntt u_ntt (
+        .clk       (clk),
+        .rst_n     (rst_n),
+        .bus_req   (data_req && ntt_sel),
+        .bus_we    (data_we),
+        .bus_addr  (data_addr[7:0]),
+        .bus_wdata (data_wdata),
+        .bus_rdata (ntt_rdata),
+        .bus_ack   (ntt_ack),
+        .c_req     (1'b0), .c_we(1'b0), .c_addr(8'h00), .c_wdata(32'h0),
+        .c_rdata   (), .c_ack(),
+        .irq_done  (ntt_irq)
+    );
+
+    // ── Shared Keccak engine (client 0 = SHA-3 only) ─────────────────────────
+    keccak_engine u_keccak (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .c0_req      (sha3_perm_req),
+        .c0_state_in (sha3_perm_state_in),
+        .c0_done     (sha3_perm_done),
+        .c0_state_out(sha3_perm_state_out),
+        .c1_req      (1'b0),
+        .c1_state_in (1600'b0),
+        .c1_done     (),
+        .c1_state_out()
+    );
+
+    // ── Data RAM (0x0001_4000, 16 KiB) ────────────────────────────────────────
+    wire        ram_rvalid;
+    wire [31:0] ram_rdata;
+
+    data_ram u_data_ram (
+        .clk    (clk),
+        .rst_n  (rst_n),
+        .req    (data_req && data_ram_sel),
+        .we     (data_we),
+        .be     (data_be),
+        .addr   (data_addr),
+        .wdata  (data_wdata),
+        .rvalid (ram_rvalid),
+        .rdata  (ram_rdata)
+    );
 
     // ── SPI slave (stub for Phase 0) ─────────────────────────────────────────
     // Tie outputs so the pins are driven; module gets implemented in Phase 7.
@@ -153,24 +262,39 @@ module quarc_bus (
 
     // ── Data response mux ────────────────────────────────────────────────────
     // Latch which device responded so we can mux rdata one cycle later.
-    reg uart_sel_q, timer_sel_q, spi_sel_q, unmapped_q, was_read_q;
+    reg uart_sel_q, timer_sel_q, spi_sel_q, sha3_sel_q, ntt_sel_q, mlkem_sel_q, ram_sel_q, rom_sel_q, unmapped_q, was_read_q;
     always @(posedge clk) begin
         if (!rst_n) begin
             uart_sel_q  <= 1'b0;
             timer_sel_q <= 1'b0;
             spi_sel_q   <= 1'b0;
+            sha3_sel_q  <= 1'b0;
+            ntt_sel_q   <= 1'b0;
+            mlkem_sel_q <= 1'b0;
+            ram_sel_q   <= 1'b0;
+            rom_sel_q   <= 1'b0;
             unmapped_q  <= 1'b0;
             was_read_q  <= 1'b0;
         end else if (data_req) begin
             uart_sel_q  <= uart_sel;
             timer_sel_q <= timer_sel;
             spi_sel_q   <= spi_sel;
-            unmapped_q  <= !data_periph_sel;
+            sha3_sel_q  <= sha3_sel;
+            ntt_sel_q   <= ntt_sel;
+            mlkem_sel_q <= mlkem_sel;
+            ram_sel_q   <= data_ram_sel;
+            rom_sel_q   <= data_rom_sel;
+            unmapped_q  <= !data_periph_sel && !data_crypto_sel && !data_ram_sel && !data_rom_sel;
             was_read_q  <= !data_we;
         end else begin
             uart_sel_q  <= 1'b0;
             timer_sel_q <= 1'b0;
             spi_sel_q   <= 1'b0;
+            sha3_sel_q  <= 1'b0;
+            ntt_sel_q   <= 1'b0;
+            mlkem_sel_q <= 1'b0;
+            ram_sel_q   <= 1'b0;
+            rom_sel_q   <= 1'b0;
             unmapped_q  <= 1'b0;
             was_read_q  <= 1'b0;
         end
@@ -189,6 +313,14 @@ module quarc_bus (
             data_rdata = uart_rdata;
         else if (timer_sel_q && was_read_q)
             data_rdata = timer_rdata;
+        else if (sha3_sel_q && was_read_q)
+            data_rdata = sha3_rdata;
+        else if (ntt_sel_q && was_read_q)
+            data_rdata = ntt_rdata;
+        else if (ram_sel_q && was_read_q)
+            data_rdata = ram_rdata;
+        else if (rom_sel_q && was_read_q)
+            data_rdata = rom_data_rdata;
         else if (spi_sel_q && was_read_q)
             data_rdata = 32'h0; // stub
         else
@@ -197,7 +329,7 @@ module quarc_bus (
 
     // Touch the ack signals so synth doesn't warn — they're not used in Phase 0
     // because we always rvalid one cycle after req.
-    wire ack_unused = &{1'b0, uart_ack, timer_ack};
+    wire ack_unused = &{1'b0, uart_ack, timer_ack, sha3_ack, ntt_ack};
 
     // ── LEDs ─────────────────────────────────────────────────────────────────
     // led[0]: heartbeat from timer IRQ (toggled in firmware via memory write)

@@ -40,9 +40,13 @@ module tb_top;
     string  rx_string = "";
     integer rx_count  = 0;
     integer expect_len;
-    string  expect_str = "QUARC v0\r\n";
+    reg [7:0] expected [0:9];
 
-    initial expect_len = expect_str.len();
+    initial begin
+        expected[0] = "Q"; expected[1] = "U"; expected[2] = "A"; expected[3] = "R"; expected[4] = "C";
+        expected[5] = " "; expected[6] = "v"; expected[7] = "0"; expected[8] = 8'h0d; expected[9] = 8'h0a;
+        expect_len = 10;
+    end
 
     initial begin
         $dumpfile("build/sim.vcd");
@@ -65,18 +69,18 @@ module tb_top;
             // We are now somewhere in the stop bit; consume it.
             // (no need to wait — falling edge of next start handles it.)
             rx_string = {rx_string, string'(b)};
-            rx_count++;
             $display("[%0t] uart byte %0d: 0x%02h '%s'",
                      $time, rx_count, b,
                      (b >= 8'h20 && b < 8'h7f) ? string'(b) :
                      (b == 8'h0d ? "\\r" : (b == 8'h0a ? "\\n" : "?")));
+            if (b !== expected[rx_count]) begin
+                $display("[%0t] FAIL byte %0d: expected 0x%02h got 0x%02h",
+                         $time, rx_count, expected[rx_count], b);
+                $finish;
+            end
+            rx_count++;
             if (rx_count >= expect_len) begin
-                if (rx_string == expect_str) begin
-                    $display("[%0t] PASS: UART emitted %s", $time, expect_str);
-                end else begin
-                    $display("[%0t] FAIL: expected %s got %s",
-                             $time, expect_str, rx_string);
-                end
+                $display("[%0t] PASS: UART emitted QUARC v0\\r\\n", $time);
                 $finish;
             end
         end

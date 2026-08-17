@@ -1,5 +1,7 @@
 # QUARC — Post-Quantum Secure Element
+
 ## Product Requirements Document v1.1 — 2025
+
 ### PROPRIETARY & CONFIDENTIAL
 
 ---
@@ -10,20 +12,20 @@
 
 ## Document Metadata
 
-| Field | Value |
-|---|---|
-| Document | Quarc PRD v1.1 |
-| Status | DRAFT — Internal Only |
-| Classification | Proprietary & Confidential |
-| FPGA Board | ULX3S — Lattice ECP5-85K (84K LUTs) |
-| CPU | Ibex RV32IMC (Apache 2.0, via sv2v + Yosys) |
-| HDL Language | Verilog 2005 (all Quarc RTL) + sv2v for Ibex CPU only |
-| Toolchain | Yosys + nextpnr + sv2v + SymbiYosys + Icarus — 100% open source |
-| Build System | GNU Make — single Makefile |
-| IP License Model | Commercial closed IP — permissive OSS components only (MIT/ISC/BSD/Apache 2.0) |
-| PQC Standards | FIPS 203 ML-KEM-768 \| FIPS 204 ML-DSA-65 |
-| Comparable Product | TROPIC01 by Tropic Square — extended with PQC |
-| Changelog | v1.1: PMP policy table, hardware key usage enforcement, device lifecycle model, secure boot rollback protection, NTT zeroization, entropy budgeting, bus protocol definition, concrete v1 use case |
+| Field              | Value                                                                                                                                                                                              |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Document           | Quarc PRD v1.1                                                                                                                                                                                     |
+| Status             | DRAFT — Internal Only                                                                                                                                                                              |
+| Classification     | Proprietary & Confidential                                                                                                                                                                         |
+| FPGA Board         | ULX3S — Lattice ECP5-85K (84K LUTs) + BeagleV-Fire — PolarFire MPFS025T (23k LEs, Step 1)                                                                                                               |
+| CPU                | Ibex RV32IMC (Apache 2.0, via sv2v + Yosys)                                                                                                                                                        |
+| HDL Language       | Verilog 2005 (all Quarc RTL) + sv2v for Ibex CPU only                                                                                                                                              |
+| Toolchain          | Yosys + nextpnr + sv2v + SymbiYosys + Icarus — 100% open source                                                                                                                                    |
+| Build System       | GNU Make — single Makefile                                                                                                                                                                         |
+| IP License Model   | Commercial closed IP — permissive OSS components only (MIT/ISC/BSD/Apache 2.0)                                                                                                                     |
+| PQC Standards      | FIPS 203 ML-KEM-768 \| FIPS 204 ML-DSA-65                                                                                                                                                          |
+| Comparable Product | TROPIC01 by Tropic Square — extended with PQC                                                                                                                                                      |
+| Changelog          | v1.1: PMP policy table, hardware key usage enforcement, device lifecycle model, secure boot rollback protection, NTT zeroization, entropy budgeting, bus protocol definition, concrete v1 use case |
 
 ---
 
@@ -90,19 +92,19 @@ This scenario is achievable entirely on the ULX3S 85K with the onboard ESP32 as 
 
 ### 1.5 Competitive Positioning
 
-| Feature | TROPIC01 | OpenTitan | ATECC608 | Quarc v1 |
-|---|---|---|---|---|
-| CPU | Ibex (SV) | Ibex (SV) | None | **Ibex RV32IMC (SV+sv2v)** |
-| HDL | SystemVerilog | SystemVerilog | N/A | **Verilog 2005 + sv2v (Ibex only)** |
-| Open toolchain | No | No | N/A | **Yes — Yosys/nextpnr** |
-| Classical crypto HW | ECC + AES | ECC + AES | ECC + AES | AES + hybrid mode |
-| PQC hardware accel. | None | None | None | **ML-KEM-768 + ML-DSA-65** |
-| Hybrid PQC mode | No | No | No | **Yes (v1)** |
-| Hardware key usage policy | Yes | Yes | Yes | **Yes (v1 — HW enforced)** |
-| Device lifecycle model | Yes | Yes | Partial | **Yes (v1)** |
-| Tamper resistance | Full (ASIC) | Full (ASIC) | Full (ASIC) | Stub hooks (v1 FPGA) |
-| PUF | Yes | Yes | Yes | v2 |
-| TEE RoT roadmap | No | Yes | No | **Yes (v2+)** |
+| Feature                   | TROPIC01      | OpenTitan     | ATECC608    | Quarc v1                            |
+| ------------------------- | ------------- | ------------- | ----------- | ----------------------------------- |
+| CPU                       | Ibex (SV)     | Ibex (SV)     | None        | **Ibex RV32IMC (SV+sv2v)**          |
+| HDL                       | SystemVerilog | SystemVerilog | N/A         | **Verilog 2005 + sv2v (Ibex only)** |
+| Open toolchain            | No            | No            | N/A         | **Yes — Yosys/nextpnr**             |
+| Classical crypto HW       | ECC + AES     | ECC + AES     | ECC + AES   | AES + hybrid mode                   |
+| PQC hardware accel.       | None          | None          | None        | **ML-KEM-768 + ML-DSA-65**          |
+| Hybrid PQC mode           | No            | No            | No          | **Yes (v1)**                        |
+| Hardware key usage policy | Yes           | Yes           | Yes         | **Yes (v1 — HW enforced)**          |
+| Device lifecycle model    | Yes           | Yes           | Partial     | **Yes (v1)**                        |
+| Tamper resistance         | Full (ASIC)   | Full (ASIC)   | Full (ASIC) | Stub hooks (v1 FPGA)                |
+| PUF                       | Yes           | Yes           | Yes         | v2                                  |
+| TEE RoT roadmap           | No            | Yes           | No          | **Yes (v2+)**                       |
 
 ---
 
@@ -135,7 +137,7 @@ This scenario is achievable entirely on the ULX3S 85K with the onboard ESP32 as 
 - Hybrid PQC + classical mode: ML-KEM + X25519, ML-DSA + Ed25519 simultaneously
 - Host SDK in C targeting STM32 and ESP32 as test host MCUs
 - Formal verification of bus decoder, Keccak core, PMP configuration logic via SymbiYosys
-- Total SoC fits < 15,000 LUTs on ECP5-85K (stretch: < 13,000)
+- Two-step fabric partition fits its target: Step 1 (BeagleV-Fire MPFS025T, 23k) with crypto in C, Step 2 (ULX3S ECP5-85K, 84k) with hardware accelerators. See README § "Two-step deployment plan". (The original `< 15,000 LUT` target was based on an obsolete estimate; the measured full-hardware design is ~150k LUT4 and requires the 84k part.)
 - Clock frequency >= 50 MHz achieved by nextpnr without timing relaxation
 - Complete v1 use case demo: PQC firmware OTA on ULX3S + ESP32
 
@@ -168,21 +170,22 @@ Every security requirement in this PRD is grounded in this threat model. A requi
 
 ### 3.2 Threat Actors
 
-| Actor | Capability | Goal | v1 Scope |
-|---|---|---|---|
-| Remote attacker | Software exploits via SPI API | Extract keys via firmware vuln | **In scope — primary threat** |
-| Malicious host firmware | Arbitrary SPI commands | Abuse SE API beyond authorization | **In scope — lifecycle + command authz** |
-| Quantum attacker | CRQC with Shor's algorithm | Break classical key exchange | **In scope — PQC primary motivation** |
-| Passive physical | SPI bus sniffing, power trace | Key recovery from channel/power | Channel encrypted; power analysis v2 |
-| Active physical | Fault injection, voltage glitch | Bypass security checks | Out of scope — v2+ |
-| Supply chain | Malicious component insertion | Hardware backdoor | Architectural only in v1 |
-| Compromised firmware | Firmware exploited post-boot | Extract key bytes from registers | **In scope — hardware key usage policy** |
+| Actor                   | Capability                      | Goal                              | v1 Scope                                 |
+| ----------------------- | ------------------------------- | --------------------------------- | ---------------------------------------- |
+| Remote attacker         | Software exploits via SPI API   | Extract keys via firmware vuln    | **In scope — primary threat**            |
+| Malicious host firmware | Arbitrary SPI commands          | Abuse SE API beyond authorization | **In scope — lifecycle + command authz** |
+| Quantum attacker        | CRQC with Shor's algorithm      | Break classical key exchange      | **In scope — PQC primary motivation**    |
+| Passive physical        | SPI bus sniffing, power trace   | Key recovery from channel/power   | Channel encrypted; power analysis v2     |
+| Active physical         | Fault injection, voltage glitch | Bypass security checks            | Out of scope — v2+                       |
+| Supply chain            | Malicious component insertion   | Hardware backdoor                 | Architectural only in v1                 |
+| Compromised firmware    | Firmware exploited post-boot    | Extract key bytes from registers  | **In scope — hardware key usage policy** |
 
 ### 3.3 Trust Boundary
 
 On the ULX3S FPGA prototype, the trust boundary is a logical RTL boundary — not a physical one. This is an acknowledged v1 limitation.
 
 **Inside the trust boundary:**
+
 - Ibex CPU execution context and firmware memory (protected by PMP, configured by Boot ROM)
 - Crypto subsystem: Keccak, NTT, ML-KEM, ML-DSA, TRNG, DRBG
 - Key store memory region (BRAM, accessible only to crypto engines via DMA — not firmware)
@@ -190,6 +193,7 @@ On the ULX3S FPGA prototype, the trust boundary is a logical RTL boundary — no
 - Boot ROM (immutable — synthesis-time loaded Verilog ROM)
 
 **Outside the trust boundary — treated as untrusted:**
+
 - SPI bus and host MCU — all communication encrypted and authenticated
 - External QSPI Flash — firmware is signature-verified and rollback-checked before execution
 - FPGA JTAG port — disabled in production bitstream
@@ -213,17 +217,17 @@ On the ULX3S FPGA prototype, the trust boundary is a logical RTL boundary — no
 
 ### 4.1 Design Principles
 
-| ID | Principle | Detail |
-|---|---|---|
-| P1 | **Crypto-first, CPU-second** | Ibex orchestrates; it does not do crypto. All heavy math is in hardware accelerators. |
-| P2 | **Lean by design** | Every module justifies its presence. Complexity is a security liability. Unused logic is removed. |
-| P3 | **Verilog 2005 only in synthesizable RTL** | No SystemVerilog in Quarc RTL. Ibex is the only SV component; sv2v converts it. |
-| P4 | **Open-source toolchain throughout** | Yosys, nextpnr, sv2v, SymbiYosys, Icarus. No Vivado, no Quartus, no proprietary EDA tools ever. |
-| P5 | **FPGA-first, ASIC-ready** | Synthesizable without FPGA primitives in core modules. ASIC port requires no RTL rewrite. |
-| P6 | **Own critical IP** | Entropy, PQC engines, bus, key store — proprietary Verilog. CPU core is permissive OSS. |
-| P7 | **Correctness before integration** | Every accelerator passes 100% NIST KAT vectors in simulation before SoC integration. |
-| P8 | **Permissive licenses only** | MIT, ISC, BSD, Apache 2.0 in the synthesizable path. Zero GPL or LGPL. |
-| P9 | **Hardware enforces policy** | Key usage, memory isolation, and lifecycle state are enforced in RTL — not in firmware. Firmware that is compromised cannot escalate privileges. |
+| ID  | Principle                                  | Detail                                                                                                                                           |
+| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P1  | **Crypto-first, CPU-second**               | Ibex orchestrates; it does not do crypto. All heavy math is in hardware accelerators.                                                            |
+| P2  | **Lean by design**                         | Every module justifies its presence. Complexity is a security liability. Unused logic is removed.                                                |
+| P3  | **Verilog 2005 only in synthesizable RTL** | No SystemVerilog in Quarc RTL. Ibex is the only SV component; sv2v converts it.                                                                  |
+| P4  | **Open-source toolchain throughout**       | Yosys, nextpnr, sv2v, SymbiYosys, Icarus. No Vivado, no Quartus, no proprietary EDA tools ever.                                                  |
+| P5  | **FPGA-first, ASIC-ready**                 | Synthesizable without FPGA primitives in core modules. ASIC port requires no RTL rewrite.                                                        |
+| P6  | **Own critical IP**                        | Entropy, PQC engines, bus, key store — proprietary Verilog. CPU core is permissive OSS.                                                          |
+| P7  | **Correctness before integration**         | Every accelerator passes 100% NIST KAT vectors in simulation before SoC integration.                                                             |
+| P8  | **Permissive licenses only**               | MIT, ISC, BSD, Apache 2.0 in the synthesizable path. Zero GPL or LGPL.                                                                           |
+| P9  | **Hardware enforces policy**               | Key usage, memory isolation, and lifecycle state are enforced in RTL — not in firmware. Firmware that is compromised cannot escalate privileges. |
 
 ### 4.2 SoC Architecture
 
@@ -264,6 +268,7 @@ Key store access rule:
 Single-master Wishbone-lite bus. Ibex is the only bus master. All peripherals are bus slaves.
 
 **Protocol:**
+
 - Signals: `cyc`, `stb`, `we`, `adr[31:0]`, `dat_w[31:0]`, `dat_r[31:0]`, `ack`, `err`
 - Handshake: valid/ready — transaction completes when `stb & ack`
 - Wait states: slaves assert `ack` when ready; Ibex stalls via `stb` hold
@@ -271,12 +276,14 @@ Single-master Wishbone-lite bus. Ibex is the only bus master. All peripherals ar
 - Error: `err` asserted on unmapped access, key store access from wrong context, or locked region write
 
 **DMA for crypto engines:**
+
 - NTT and ML-KEM/DSA controllers DMA polynomial data directly from BRAM scratchpad
 - DMA is internal to the crypto subsystem — not via the main bus
 - Ibex initiates an operation by writing to a control register; engine signals completion via interrupt
 - Key material DMA from key store to engine registers is internal and never visible on main bus
 
 **Formal verification targets for bus:**
+
 - No address maps to two simultaneous slaves
 - No unmapped access returns data (only `err`)
 - Key store region inaccessible from firmware bus transactions
@@ -284,26 +291,39 @@ Single-master Wishbone-lite bus. Ibex is the only bus master. All peripherals ar
 
 ### 4.4 Module Inventory and LUT Budget
 
-| Module | Est. LUTs | Source | Notes |
-|---|---|---|---|
-| Ibex RV32IMC | ~3,500 | Apache 2.0 (OSS) | Control plane only. Not on crypto path. Synthesised via sv2v. |
-| System Bus | ~200 | Proprietary | Custom Wishbone-lite + formal verification. |
-| Keccak/SHAKE engine | ~1,500 | Proprietary | Shared by all consumers. Built and verified first. |
-| NTT engine (shared) | ~3,000 | Proprietary | Parameterised for q=3329 and q=8380417. |
-| ML-KEM-768 controller | ~1,500 | Proprietary | State machine. Drives NTT and Keccak engines. |
-| ML-DSA-65 controller | ~2,000 | Proprietary | State machine. Rejection sampler. Drives NTT. |
-| Key Usage Enforcer | ~200 | Proprietary | HW policy engine. Enforces SIGN/DECAP/NO-EXPORT per slot. |
-| TRNG | ~300 | Proprietary | Ring oscillator. SP 800-90B RCT + APT health tests. |
-| DRBG (SHAKE-256) | ~200 | Proprietary | Auto-reseed from TRNG. Entropy budgeting enforced. |
-| SPI slave | ~400 | Proprietary | Mode 0/3. Command framing. 10 MHz target. |
-| Key store controller | ~200 + BRAM | Proprietary | BRAM-backed. DMA-only access from crypto engines. |
-| Boot ROM | ~100 + BRAM | Proprietary | Verilog ROM. PMP config. ML-DSA root key. Rollback counter. |
-| Lifecycle state machine | ~150 | Proprietary | 4-state FSM. One-way transitions. HW enforced. |
-| Rollback counter | ~100 | Proprietary | Monotonic. BRAM-backed (v1). OTP in v2. |
-| UART debug | ~200 | OSS (permissive) | Disabled in production bitstream. |
-| Timer + WDT | ~150 | Proprietary | RISC-V mtime/mtimecmp + 100ms watchdog. |
-| IRAM / DRAM | BRAM only | Inferred | Separate address regions. No FPGA primitives. |
-| **TOTAL (estimate)** | **~13,700 LUT** | | ~16% of ECP5-85K. Comfortable headroom. |
+> **Status:** The LUT estimates below date from the original single-partition
+> plan and are **obsolete**. Measured synthesis after the ML-KEM hardware
+> controller (`build/synth.log`) is **149,551 LUT4 + 58,901 FF** — the full
+> hardware path exceeds both the ECP5-85K (84k) and PolarFire MPFS025T (23k).
+> Quarc therefore uses a **two-step partition**: Step 1 (BeagleV-Fire, 23k)
+> keeps crypto in C (`fw/mlkem_sw.c` over the SHA-3 + NTT MMIO engines) with a
+> minimal fabric; Step 2 (ULX3S, 84k) returns the hardware ML-KEM/ML-DSA
+> controllers, KUE, keystore, and SPI slave to fabric. See README § "Two-step
+> deployment plan" for the authoritative partition. The table below documents
+> the *estimated* per-module cost for the Step 2 (hardware-accelerated) fabric.
+> **Step 1 bring-up build** (ML-KEM + TRNG/DRBG removed, `build/synth_step1_v4.log`)
+> measures **18,832 LUT4 + 10,554 FF** and fits the 23k MPFS025T.
+
+| Module                  | Est. LUTs       | Source           | Notes                                                         |
+| ----------------------- | --------------- | ---------------- | ------------------------------------------------------------- |
+| Ibex RV32IMC            | ~3,500          | Apache 2.0 (OSS) | Control plane only. Not on crypto path. Synthesised via sv2v. |
+| System Bus              | ~200            | Proprietary      | Custom Wishbone-lite + formal verification.                   |
+| Keccak/SHAKE engine     | ~10,200         | Proprietary      | Shared by all consumers. Full-width 1600-bit round.           |
+| NTT engine (shared)     | ~3,000          | Proprietary      | Parameterised for q=3329 and q=8380417.                       |
+| ML-KEM-768 controller   | ~1,500+          | Proprietary      | State machine. Drives NTT and Keccak engines.                 |
+| ML-DSA-65 controller    | ~2,000+          | Proprietary      | State machine. Rejection sampler. Drives NTT.                 |
+| Key Usage Enforcer      | ~200            | Proprietary      | HW policy engine. Enforces SIGN/DECAP/NO-EXPORT per slot.     |
+| TRNG                    | ~300            | Proprietary      | Ring oscillator. SP 800-90B RCT + APT health tests.           |
+| DRBG (SHAKE-256)        | ~200            | Proprietary      | Auto-reseed from TRNG. Entropy budgeting enforced.            |
+| SPI slave               | ~400            | Proprietary      | Mode 0/3. Command framing. 10 MHz target.                     |
+| Key store controller    | ~200 + BRAM     | Proprietary      | BRAM-backed. DMA-only access from crypto engines.             |
+| Boot ROM                | ~100 + BRAM     | Proprietary      | Verilog ROM. PMP config. ML-DSA root key. Rollback counter.   |
+| Lifecycle state machine | ~150            | Proprietary      | 4-state FSM. One-way transitions. HW enforced.                |
+| Rollback counter        | ~100            | Proprietary      | Monotonic. BRAM-backed (v1). OTP in v2.                       |
+| UART debug              | ~200            | OSS (permissive) | Disabled in production bitstream.                             |
+| Timer + WDT             | ~150            | Proprietary      | RISC-V mtime/mtimecmp + 100ms watchdog.                       |
+| IRAM / DRAM             | BRAM only       | Inferred         | Separate address regions. No FPGA primitives.                 |
+| **TOTAL (Step 2, est.)**| **~23,000+ LUT**|                  | Full-hardware path. Does NOT fit MPFS025T (23k); fits ECP5-85K. |
 
 ---
 
@@ -315,18 +335,19 @@ Single-master Wishbone-lite bus. Ibex is the only bus master. All peripherals ar
 
 The Boot ROM configures and locks all PMP regions **before** jumping to firmware. Firmware cannot reconfigure PMP after boot. This is the critical distinction from firmware-configured PMP — a compromised firmware cannot escape its sandbox.
 
-| Region | Address Range | Permissions | Locked by | Notes |
-|---|---|---|---|---|
-| 0 | Boot ROM | R-X | Boot ROM itself | Immutable. Firmware cannot write or re-execute. |
-| 1 | Firmware IRAM | R-X | Boot ROM | Execute-only for firmware. No self-modification. |
-| 2 | Data RAM | RW | Boot ROM | Firmware stack and heap. No execute. |
-| 3 | Key store | --- | Boot ROM | **No access from M-mode firmware.** Crypto engines access via internal DMA only. |
-| 4 | Crypto engine MMIO | RW | Boot ROM | Control registers only. Key bytes never appear here. |
-| 5 | SPI / UART / GPIO | RW | Boot ROM | Peripheral access. |
-| 6 | Lifecycle register | RW (restricted) | Boot ROM | Write only accepted per lifecycle state machine. |
-| 7 | Rollback counter | R only | Boot ROM | Firmware can read. Cannot write directly — only Boot ROM increments. |
+| Region | Address Range      | Permissions     | Locked by       | Notes                                                                            |
+| ------ | ------------------ | --------------- | --------------- | -------------------------------------------------------------------------------- |
+| 0      | Boot ROM           | R-X             | Boot ROM itself | Immutable. Firmware cannot write or re-execute.                                  |
+| 1      | Firmware IRAM      | R-X             | Boot ROM        | Execute-only for firmware. No self-modification.                                 |
+| 2      | Data RAM           | RW              | Boot ROM        | Firmware stack and heap. No execute.                                             |
+| 3      | Key store          | ---             | Boot ROM        | **No access from M-mode firmware.** Crypto engines access via internal DMA only. |
+| 4      | Crypto engine MMIO | RW              | Boot ROM        | Control registers only. Key bytes never appear here.                             |
+| 5      | SPI / UART / GPIO  | RW              | Boot ROM        | Peripheral access.                                                               |
+| 6      | Lifecycle register | RW (restricted) | Boot ROM        | Write only accepted per lifecycle state machine.                                 |
+| 7      | Rollback counter   | R only          | Boot ROM        | Firmware can read. Cannot write directly — only Boot ROM increments.             |
 
 **Boot sequence:**
+
 ```
 Power on
   → TRNG health test (halt if fail)
@@ -344,15 +365,16 @@ This is the mechanism that makes Quarc an SE rather than a crypto accelerator. F
 
 **Key slot policy register (per slot, set at provisioning, hardware-enforced):**
 
-| Policy Bit | Meaning | Enforced By |
-|---|---|---|
-| `SIGN_ONLY` | Slot may only be used for ML-DSA signing | KUE RTL |
-| `DECAP_ONLY` | Slot may only be used for ML-KEM decapsulation | KUE RTL |
-| `NO_EXPORT` | Key material never leaves key store in any form | KUE RTL |
-| `NO_OVERWRITE` | Slot cannot be overwritten once provisioned | KUE RTL |
-| `COUNTER_LIMIT[15:0]` | Maximum use count — KUE blocks operation when reached | KUE RTL |
+| Policy Bit            | Meaning                                               | Enforced By |
+| --------------------- | ----------------------------------------------------- | ----------- |
+| `SIGN_ONLY`           | Slot may only be used for ML-DSA signing              | KUE RTL     |
+| `DECAP_ONLY`          | Slot may only be used for ML-KEM decapsulation        | KUE RTL     |
+| `NO_EXPORT`           | Key material never leaves key store in any form       | KUE RTL     |
+| `NO_OVERWRITE`        | Slot cannot be overwritten once provisioned           | KUE RTL     |
+| `COUNTER_LIMIT[15:0]` | Maximum use count — KUE blocks operation when reached | KUE RTL     |
 
 **Operation flow (example: DSA_SIGN with slot 0):**
+
 ```
 Firmware writes: KUE_CMD = {SIGN, slot=0, hash_ptr=...}
 KUE checks:      slot 0 policy == SIGN_ONLY? → yes, proceed
@@ -379,24 +401,25 @@ MANUFACTURING ──→ PROVISIONED ──→ LOCKED
 
 **State definitions and command permissions:**
 
-| Command | MANUFACTURING | PROVISIONED | LOCKED | RMA |
-|---|---|---|---|---|
-| `PING` | ✓ | ✓ | ✓ | ✓ |
-| `GET_STATUS` | ✓ | ✓ | ✓ | ✓ |
-| `GET_RANDOM` | ✓ | ✓ | ✓ | ✗ |
-| `KEM_KEYGEN` | ✓ | ✓ | ✗ | ✗ |
-| `KEM_ENCAP` | ✗ | ✓ | ✓ | ✗ |
-| `KEM_DECAP` | ✗ | ✓ | ✓ | ✗ |
-| `DSA_KEYGEN` | ✓ | ✓ | ✗ | ✗ |
-| `DSA_SIGN` | ✗ | ✓ | ✓ | ✗ |
-| `DSA_VERIFY` | ✓ | ✓ | ✓ | ✗ |
-| `STORE_KEY` | ✓ | ✓ | ✗ | ✗ |
-| `FW_UPDATE` | ✓ | ✓ | ✗ | ✗ |
-| `SECURE_ERASE` | ✗ | ✓ | ✓ | ✓ |
-| `CHANNEL_INIT` | ✓ | ✓ | ✓ | ✗ |
-| `SET_LIFECYCLE` | ✓ (→PROV) | ✓ (→LOCK/RMA) | ✓ (→RMA) | ✗ |
+| Command         | MANUFACTURING | PROVISIONED   | LOCKED   | RMA |
+| --------------- | ------------- | ------------- | -------- | --- |
+| `PING`          | ✓             | ✓             | ✓        | ✓   |
+| `GET_STATUS`    | ✓             | ✓             | ✓        | ✓   |
+| `GET_RANDOM`    | ✓             | ✓             | ✓        | ✗   |
+| `KEM_KEYGEN`    | ✓             | ✓             | ✗        | ✗   |
+| `KEM_ENCAP`     | ✗             | ✓             | ✓        | ✗   |
+| `KEM_DECAP`     | ✗             | ✓             | ✓        | ✗   |
+| `DSA_KEYGEN`    | ✓             | ✓             | ✗        | ✗   |
+| `DSA_SIGN`      | ✗             | ✓             | ✓        | ✗   |
+| `DSA_VERIFY`    | ✓             | ✓             | ✓        | ✗   |
+| `STORE_KEY`     | ✓             | ✓             | ✗        | ✗   |
+| `FW_UPDATE`     | ✓             | ✓             | ✗        | ✗   |
+| `SECURE_ERASE`  | ✗             | ✓             | ✓        | ✓   |
+| `CHANNEL_INIT`  | ✓             | ✓             | ✓        | ✗   |
+| `SET_LIFECYCLE` | ✓ (→PROV)     | ✓ (→LOCK/RMA) | ✓ (→RMA) | ✗   |
 
 **Transition rules:**
+
 - `MANUFACTURING → PROVISIONED`: triggered by `SET_LIFECYCLE` command; requires at least one key slot provisioned and device root key set
 - `PROVISIONED → LOCKED`: triggered by `SET_LIFECYCLE`; no key import or firmware update possible after this
 - `PROVISIONED → RMA`: triggered by `SET_LIFECYCLE`; followed by `SECURE_ERASE`; device returns to eraseable state
@@ -407,6 +430,7 @@ MANUFACTURING ──→ PROVISIONED ──→ LOCKED
 Firmware rollback allows an attacker to downgrade to a vulnerable firmware version. Anti-rollback enforcement is in the Boot ROM — not firmware.
 
 **Rollback counter:**
+
 - 32-bit monotonic counter stored in BRAM (v1) / OTP (v2)
 - Stored in Boot ROM address space — firmware cannot write to it
 - Boot ROM reads counter and compares against firmware version field in firmware header
@@ -416,6 +440,7 @@ Firmware rollback allows an attacker to downgrade to a vulnerable firmware versi
 - Counter can only increase — hardware enforced
 
 **Firmware header format (32-byte prefix, ML-DSA signature covers full image including header):**
+
 ```
 [0:3]   magic       = 0x51415243  ("QARC")
 [4:7]   fw_version  = monotonic integer, must be >= rollback_counter
@@ -431,6 +456,7 @@ Firmware rollback allows an attacker to downgrade to a vulnerable firmware versi
 After every PQC operation (ML-KEM or ML-DSA), the NTT engine scratchpad BRAM is zeroed before the operation is signalled as complete. This prevents residual polynomial coefficient leakage between operations.
 
 **Zeroization sequence:**
+
 ```
 PQC operation completes
   → NTT controller asserts ZEROIZE signal
@@ -445,15 +471,16 @@ Zeroization is an RTL requirement — firmware cannot skip it. The OP_DONE inter
 
 PQC algorithms are entropy-hungry. The DRBG tracks entropy consumption per operation and enforces reseed policy.
 
-| Operation | Entropy consumed | Source |
-|---|---|---|
-| ML-KEM-768 KeyGen | 64 bytes | DRBG (seed from TRNG) |
-| ML-KEM-768 Encaps | 32 bytes | DRBG |
-| ML-DSA-65 KeyGen | 32 bytes | DRBG |
-| ML-DSA-65 Sign | 32 bytes (rho' randomisation) | DRBG |
-| Session key (Noise IK) | 32 bytes | DRBG |
+| Operation              | Entropy consumed              | Source                |
+| ---------------------- | ----------------------------- | --------------------- |
+| ML-KEM-768 KeyGen      | 64 bytes                      | DRBG (seed from TRNG) |
+| ML-KEM-768 Encaps      | 32 bytes                      | DRBG                  |
+| ML-DSA-65 KeyGen       | 32 bytes                      | DRBG                  |
+| ML-DSA-65 Sign         | 32 bytes (rho' randomisation) | DRBG                  |
+| Session key (Noise IK) | 32 bytes                      | DRBG                  |
 
 **DRBG policy:**
+
 - Reseed from TRNG every 1000 DRBG requests or every 10 minutes (whichever comes first)
 - Reseed also triggered when DRBG entropy estimate drops below 128-bit security level
 - If TRNG unavailable during required reseed: halt — do not continue with stale DRBG state
@@ -620,22 +647,22 @@ The host channel uses the Noise Protocol Framework pattern IK. Key exchange upgr
 
 All commands are subject to lifecycle state enforcement (Section 5.3). Commands rejected by lifecycle state return `ERR_LIFECYCLE`. Commands that violate key usage policy return `ERR_KEY_POLICY`.
 
-| Command | Description | Lifecycle |
-|---|---|---|
-| `PING` | Liveness check — returns firmware version, device status, lifecycle state, TRNG health | All |
-| `GET_RANDOM` | Return N bytes (max 64) from DRBG output | MFG, PROV, LOCK |
-| `KEM_KEYGEN` | Generate ML-KEM-768 keypair, store dk in slot with policy, return ek | MFG, PROV |
-| `KEM_ENCAP` | Encapsulate using provided ek — return ciphertext and shared secret | PROV, LOCK |
-| `KEM_DECAP` | Decapsulate using dk in slot (KUE enforces DECAP_ONLY) — return shared secret | PROV, LOCK |
-| `DSA_KEYGEN` | Generate ML-DSA-65 keypair, store sk in slot with policy, return vk | MFG, PROV |
-| `DSA_SIGN` | Sign message hash using sk in slot (KUE enforces SIGN_ONLY) | PROV, LOCK |
-| `DSA_VERIFY` | Verify signature using provided vk — return accept/reject | MFG, PROV, LOCK |
-| `STORE_KEY` | Import key into slot with specified policy — encrypted via channel | MFG, PROV |
-| `GET_STATUS` | Return: lifecycle state, TRNG health, boot status, slot occupancy, rollback counter | All |
-| `SECURE_ERASE` | Destroy all key material — device returns to eraseable state | PROV, LOCK, RMA |
-| `FW_UPDATE` | Deliver firmware image — ML-DSA verified + rollback checked before flash | MFG, PROV |
-| `SET_LIFECYCLE` | Advance lifecycle state (one-way) | Per table in 5.3 |
-| `CHANNEL_INIT` | Initiate Noise IK handshake — first command in any session | MFG, PROV, LOCK |
+| Command         | Description                                                                            | Lifecycle        |
+| --------------- | -------------------------------------------------------------------------------------- | ---------------- |
+| `PING`          | Liveness check — returns firmware version, device status, lifecycle state, TRNG health | All              |
+| `GET_RANDOM`    | Return N bytes (max 64) from DRBG output                                               | MFG, PROV, LOCK  |
+| `KEM_KEYGEN`    | Generate ML-KEM-768 keypair, store dk in slot with policy, return ek                   | MFG, PROV        |
+| `KEM_ENCAP`     | Encapsulate using provided ek — return ciphertext and shared secret                    | PROV, LOCK       |
+| `KEM_DECAP`     | Decapsulate using dk in slot (KUE enforces DECAP_ONLY) — return shared secret          | PROV, LOCK       |
+| `DSA_KEYGEN`    | Generate ML-DSA-65 keypair, store sk in slot with policy, return vk                    | MFG, PROV        |
+| `DSA_SIGN`      | Sign message hash using sk in slot (KUE enforces SIGN_ONLY)                            | PROV, LOCK       |
+| `DSA_VERIFY`    | Verify signature using provided vk — return accept/reject                              | MFG, PROV, LOCK  |
+| `STORE_KEY`     | Import key into slot with specified policy — encrypted via channel                     | MFG, PROV        |
+| `GET_STATUS`    | Return: lifecycle state, TRNG health, boot status, slot occupancy, rollback counter    | All              |
+| `SECURE_ERASE`  | Destroy all key material — device returns to eraseable state                           | PROV, LOCK, RMA  |
+| `FW_UPDATE`     | Deliver firmware image — ML-DSA verified + rollback checked before flash               | MFG, PROV        |
+| `SET_LIFECYCLE` | Advance lifecycle state (one-way)                                                      | Per table in 5.3 |
+| `CHANNEL_INIT`  | Initiate Noise IK handshake — first command in any session                             | MFG, PROV, LOCK  |
 
 ---
 
@@ -666,22 +693,22 @@ All commands are subject to lifecycle state enforcement (Section 5.3). Commands 
 
 ### 7.1 Performance Targets
 
-| Operation | Quarc target @ 50 MHz | pqm4 baseline (M4 @ 168 MHz) | Min speedup |
-|---|---|---|---|
-| ML-KEM-768 KeyGen | < 0.5 ms | ~1.5 ms | >= 3x |
-| ML-KEM-768 Encaps | < 0.5 ms | ~1.7 ms | >= 3x |
-| ML-KEM-768 Decaps | < 0.5 ms | ~1.8 ms | >= 3x |
-| ML-DSA-65 KeyGen | < 2 ms | ~6 ms | >= 3x |
-| ML-DSA-65 Sign | < 5 ms | ~12 ms | >= 2x |
-| ML-DSA-65 Verify | < 2 ms | ~5 ms | >= 2x |
-| Keccak 1 block | < 0.1 ms | ~0.3 ms | >= 3x |
-| NTT zeroization | < 0.1 ms | N/A | Must not dominate operation latency |
+| Operation         | Quarc target @ 50 MHz | pqm4 baseline (M4 @ 168 MHz) | Min speedup                         |
+| ----------------- | --------------------- | ---------------------------- | ----------------------------------- |
+| ML-KEM-768 KeyGen | < 0.5 ms              | ~1.5 ms                      | >= 3x                               |
+| ML-KEM-768 Encaps | < 0.5 ms              | ~1.7 ms                      | >= 3x                               |
+| ML-KEM-768 Decaps | < 0.5 ms              | ~1.8 ms                      | >= 3x                               |
+| ML-DSA-65 KeyGen  | < 2 ms                | ~6 ms                        | >= 3x                               |
+| ML-DSA-65 Sign    | < 5 ms                | ~12 ms                       | >= 2x                               |
+| ML-DSA-65 Verify  | < 2 ms                | ~5 ms                        | >= 2x                               |
+| Keccak 1 block    | < 0.1 ms              | ~0.3 ms                      | >= 3x                               |
+| NTT zeroization   | < 0.1 ms              | N/A                          | Must not dominate operation latency |
 
 > Note: pqm4 baselines from the pqm4 benchmark suite on STM32F4 at 168 MHz. 50 MHz is conservative for ECP5.
 
 ### 7.2 Resource Budget
 
-- Total LUT target: < 15,000 (< 18% of ECP5-85K)
+- Total LUT target: fits Step 2 target (ECP5-85K, 84k LUT4) with hardware accelerators; Step 1 (BeagleV-Fire, 23k) uses crypto-in-C partition. Original `< 15,000` target is obsolete (measured full-hardware design ~150k LUT4).
 - EBR BRAM: < 50% of available 3744 Kbits on ECP5-85K
 - Fmax: >= 50 MHz with nextpnr-ecp5, timing constraints enforced, no relaxation
 
@@ -725,24 +752,24 @@ All commands are subject to lifecycle state enforcement (Section 5.3). Commands 
 
 > These decisions are locked for v1. Revisiting them requires a formal PRD amendment.
 
-| Decision | Chosen | Rejected | Rationale |
-|---|---|---|---|
-| HDL language | Verilog 2005 (Quarc RTL) | SystemVerilog | Yosys native for all Quarc logic. sv2v handles Ibex only. |
-| CPU core | Ibex RV32IMC (via sv2v) | PicoRV32 (no PMP) | SE-proven. Hardware PMP mandatory for Boot ROM isolation policy. |
-| FPGA family | Lattice ECP5 | Xilinx Artix-7 | Full open-source P&R. Xilinx requires proprietary Vivado. |
-| FPGA board | ULX3S 85K | OrangeCrab | 84K LUTs, open hardware, onboard ESP32 as test host. |
-| Bus | Custom Wishbone-lite | AXI4, TileLink | ~200 lines, formally verifiable, single-master, fully owned. |
-| Key access model | Hardware DMA only (KUE) | Firmware-readable registers | Firmware compromise cannot expose key bytes. This is the SE/accelerator distinction. |
-| PMP configuration | Boot ROM configures + locks | Firmware configures | Compromised firmware cannot reconfigure memory isolation. |
-| Lifecycle enforcement | RTL state machine | Firmware flag | Hardware lifecycle cannot be bypassed by compromised firmware. |
-| Rollback protection | Boot ROM enforced counter | Firmware check | Firmware cannot skip its own downgrade check. |
-| NTT zeroization | RTL-enforced, blocks OP_DONE | Firmware responsibility | Firmware cannot forget to zeroize. Timing side-channel closed in hardware. |
-| PQC parameters | ML-KEM-768, ML-DSA-65 | Level 1 / Level 5 | NIST security level 3. Balanced area/security. |
-| Host channel | Noise IK + hybrid KEM | TLS 1.3, custom | Proven SE channel pattern. Hybrid = quantum resistance + classical compat. |
-| Firmware environment | Bare metal C | FreeRTOS, Zephyr | Minimum attack surface. Deterministic timing. |
-| Build system | GNU Make | CMake, Bazel | Universal, readable, zero dependencies. |
-| IP licensing | Permissive only | GPL, LGPL | Commercial product. No copyleft obligations. |
-| NTT architecture | Iterative butterfly | Parallel / unrolled | Area-efficient. Formally verifiable. Constant latency. |
+| Decision              | Chosen                       | Rejected                    | Rationale                                                                            |
+| --------------------- | ---------------------------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| HDL language          | Verilog 2005 (Quarc RTL)     | SystemVerilog               | Yosys native for all Quarc logic. sv2v handles Ibex only.                            |
+| CPU core              | Ibex RV32IMC (via sv2v)      | PicoRV32 (no PMP)           | SE-proven. Hardware PMP mandatory for Boot ROM isolation policy.                     |
+| FPGA family           | Lattice ECP5                 | Xilinx Artix-7              | Full open-source P&R. Xilinx requires proprietary Vivado.                            |
+| FPGA board            | ULX3S 85K                    | OrangeCrab                  | 84K LUTs, open hardware, onboard ESP32 as test host.                                 |
+| Bus                   | Custom Wishbone-lite         | AXI4, TileLink              | ~200 lines, formally verifiable, single-master, fully owned.                         |
+| Key access model      | Hardware DMA only (KUE)      | Firmware-readable registers | Firmware compromise cannot expose key bytes. This is the SE/accelerator distinction. |
+| PMP configuration     | Boot ROM configures + locks  | Firmware configures         | Compromised firmware cannot reconfigure memory isolation.                            |
+| Lifecycle enforcement | RTL state machine            | Firmware flag               | Hardware lifecycle cannot be bypassed by compromised firmware.                       |
+| Rollback protection   | Boot ROM enforced counter    | Firmware check              | Firmware cannot skip its own downgrade check.                                        |
+| NTT zeroization       | RTL-enforced, blocks OP_DONE | Firmware responsibility     | Firmware cannot forget to zeroize. Timing side-channel closed in hardware.           |
+| PQC parameters        | ML-KEM-768, ML-DSA-65        | Level 1 / Level 5           | NIST security level 3. Balanced area/security.                                       |
+| Host channel          | Noise IK + hybrid KEM        | TLS 1.3, custom             | Proven SE channel pattern. Hybrid = quantum resistance + classical compat.           |
+| Firmware environment  | Bare metal C                 | FreeRTOS, Zephyr            | Minimum attack surface. Deterministic timing.                                        |
+| Build system          | GNU Make                     | CMake, Bazel                | Universal, readable, zero dependencies.                                              |
+| IP licensing          | Permissive only              | GPL, LGPL                   | Commercial product. No copyleft obligations.                                         |
+| NTT architecture      | Iterative butterfly          | Parallel / unrolled         | Area-efficient. Formally verifiable. Constant latency.                               |
 
 ---
 
@@ -760,14 +787,14 @@ All commands are subject to lifecycle state enforcement (Section 5.3). Commands 
 
 ### 9.2 KAT Requirements — Mandatory Before Integration
 
-| Module | KAT Source | Pass Criterion |
-|---|---|---|
-| Keccak/SHA-3/SHAKE | NIST SHA-3 KAT vectors | 100% pass all modes |
-| ML-KEM-768 | NIST FIPS 203 KAT | 100% pass keygen, encaps, decaps |
-| ML-DSA-65 | NIST FIPS 204 KAT | 100% pass keygen, sign, verify |
-| AES-256-GCM | NIST CAVS / ACVTS | 100% pass encrypt and decrypt |
-| DRBG (SHAKE-256) | NIST SP 800-90A KAT | 100% pass generate with reseed |
-| TRNG health tests | Injected fault test | RCT and APT trigger halt on injected failure |
+| Module             | KAT Source             | Pass Criterion                               |
+| ------------------ | ---------------------- | -------------------------------------------- |
+| Keccak/SHA-3/SHAKE | NIST SHA-3 KAT vectors | 100% pass all modes                          |
+| ML-KEM-768         | NIST FIPS 203 KAT      | 100% pass keygen, encaps, decaps             |
+| ML-DSA-65          | NIST FIPS 204 KAT      | 100% pass keygen, sign, verify               |
+| AES-256-GCM        | NIST CAVS / ACVTS      | 100% pass encrypt and decrypt                |
+| DRBG (SHAKE-256)   | NIST SP 800-90A KAT    | 100% pass generate with reseed               |
+| TRNG health tests  | Injected fault test    | RCT and APT trigger halt on injected failure |
 
 ### 9.3 Formal Verification Targets
 
@@ -802,7 +829,7 @@ All commands are subject to lifecycle state enforcement (Section 5.3). Commands 
 - [ ] NTT scratchpad verified zero after every operation
 - [ ] PMP regions locked by Boot ROM before firmware entry (formal proof)
 - [ ] Ibex firmware executes without fault for 24-hour continuous soak
-- [ ] Total LUT count < 15,000 on ECP5-85K
+- [ ] Total LUT count fits Step 2 target (ECP5-85K, 84k LUT4) with hardware accelerators; Step 1 (BeagleV-Fire, 23k) uses crypto-in-C partition. Original `< 15,000` target is obsolete.
 - [ ] Clock frequency >= 50 MHz
 - [ ] SymbiYosys formal proofs pass for bus decoder, Keccak, KUE, PMP config, lifecycle FSM
 - [ ] v1 use case demo (Section 1.4) runs end-to-end on ULX3S + ESP32
@@ -813,36 +840,36 @@ All commands are subject to lifecycle state enforcement (Section 5.3). Commands 
 
 > Each phase must pass its exit criteria before the next begins. No exceptions.
 
-| Phase | Weeks | Deliverables | Exit Criteria |
-|---|---|---|---|
-| **0 — Foundation** | 1–2 | Ibex (via sv2v) on ECP5-85K. UART hello world. Memory map + PMP region table defined. Bus skeleton. Boot ROM stub. | Ibex boots. UART correct. Bitstream programs via openFPGALoader. PMP table in spec. |
-| **1 — Keccak** | 3–5 | Keccak/SHAKE RTL. Icarus testbench. NIST KAT runner. SymbiYosys formal. Memory-mapped interface. | 100% NIST SHA-3 KAT pass. Formal proof complete. Accessible from Ibex. |
-| **2 — Entropy** | 5–7 | TRNG ring oscillator RTL. SP 800-90B RCT + APT in RTL. SHAKE DRBG with entropy budgeting. | SP 800-22 pass. Health test halts on injected failure. Entropy budget counter functional. |
-| **3 — NTT Engine** | 7–10 | NTT/iNTT iterative butterfly. Parameterised q=3329. Scratchpad BRAM. Zeroization RTL. Constant-time. SymbiYosys formal. | NTT(iNTT(poly)) == poly. Formally verified. Zeroization verified in simulation. |
-| **4 — ML-KEM** | 10–14 | ML-KEM-768 controller. Keygen/Encaps/Decaps. KUE integration (DECAP_ONLY policy). Firmware driver. | 100% FIPS 203 KAT pass. KUE policy rejection confirmed in simulation. |
-| **5 — ML-DSA** | 13–17 | NTT reparameterised q=8380417. ML-DSA-65 controller. HW rejection sampler. KUE integration (SIGN_ONLY). | 100% FIPS 204 KAT pass. KUE policy rejection confirmed. |
-| **6 — Security Policy** | 16–20 | KUE full RTL. PMP Boot ROM configuration. Lifecycle FSM. Rollback counter. SymbiYosys formal on all policy modules. | All formal proofs pass. Security simulation tests pass (Section 9.4). |
-| **7 — SPI + Channel** | 19–23 | SPI slave RTL. Noise IK + hybrid ML-KEM + X25519. AES-256-GCM channel. Host SDK in C. | Full encrypted session. Forward secrecy confirmed. Lifecycle-gated commands working. |
-| **8 — Boot + Integration** | 22–26 | Secure boot ROM (PMP + ML-DSA + rollback). Full SoC integration. 24h soak. v1 use case demo. | All Section 9.5 criteria pass. v1 demo runs on ULX3S + ESP32. |
+| Phase                      | Weeks | Deliverables                                                                                                            | Exit Criteria                                                                             |
+| -------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **0 — Foundation**         | 1–2   | Ibex (via sv2v) on ECP5-85K. UART hello world. Memory map + PMP region table defined. Bus skeleton. Boot ROM stub.      | Ibex boots. UART correct. Bitstream programs via openFPGALoader. PMP table in spec.       |
+| **1 — Keccak**             | 3–5   | Keccak/SHAKE RTL. Icarus testbench. NIST KAT runner. SymbiYosys formal. Memory-mapped interface.                        | 100% NIST SHA-3 KAT pass. Formal proof complete. Accessible from Ibex.                    |
+| **2 — Entropy**            | 5–7   | TRNG ring oscillator RTL. SP 800-90B RCT + APT in RTL. SHAKE DRBG with entropy budgeting.                               | SP 800-22 pass. Health test halts on injected failure. Entropy budget counter functional. |
+| **3 — NTT Engine**         | 7–10  | NTT/iNTT iterative butterfly. Parameterised q=3329. Scratchpad BRAM. Zeroization RTL. Constant-time. SymbiYosys formal. | NTT(iNTT(poly)) == poly. Formally verified. Zeroization verified in simulation.           |
+| **4 — ML-KEM**             | 10–14 | ML-KEM-768 controller. Keygen/Encaps/Decaps. KUE integration (DECAP_ONLY policy). Firmware driver.                      | 100% FIPS 203 KAT pass. KUE policy rejection confirmed in simulation.                     |
+| **5 — ML-DSA**             | 13–17 | NTT reparameterised q=8380417. ML-DSA-65 controller. HW rejection sampler. KUE integration (SIGN_ONLY).                 | 100% FIPS 204 KAT pass. KUE policy rejection confirmed.                                   |
+| **6 — Security Policy**    | 16–20 | KUE full RTL. PMP Boot ROM configuration. Lifecycle FSM. Rollback counter. SymbiYosys formal on all policy modules.     | All formal proofs pass. Security simulation tests pass (Section 9.4).                     |
+| **7 — SPI + Channel**      | 19–23 | SPI slave RTL. Noise IK + hybrid ML-KEM + X25519. AES-256-GCM channel. Host SDK in C.                                   | Full encrypted session. Forward secrecy confirmed. Lifecycle-gated commands working.      |
+| **8 — Boot + Integration** | 22–26 | Secure boot ROM (PMP + ML-DSA + rollback). Full SoC integration. 24h soak. v1 use case demo.                            | All Section 9.5 criteria pass. v1 demo runs on ULX3S + ESP32.                             |
 
 ---
 
 ## 11. Toolchain Reference
 
-| Tool | Purpose | License | Notes |
-|---|---|---|---|
-| sv2v | SV to Verilog conversion | MIT | Converts Ibex SV to Verilog before Yosys. Single Makefile step, deterministic. |
-| Yosys | RTL synthesis | ISC | `synth_ecp5 -abc9`. Native Verilog 2005. |
-| nextpnr-ecp5 | Place and route | ISC | Project Trellis backend. Timing-driven. |
-| ecppack | Bitstream generation | MIT | Part of Project Trellis. |
-| openFPGALoader | FPGA programming | Apache 2.0 | Programs ULX3S natively. |
-| Icarus Verilog | Functional simulation | GPL (sim only) | `iverilog` + `vvp`. GTKWave for waveforms. |
-| Verilator | Fast regression simulation | LGPL (sim only) | C++ compiled. 10–100x faster than Icarus. |
-| SymbiYosys | Formal verification | ISC | BMC and k-induction. All policy module targets. |
-| GTKWave | Waveform viewer | GPL (viewer) | VCD/FST debug. |
-| riscv32-unknown-elf-gcc | Firmware compiler | GPL (compiler) | `march=rv32imc`. Bare metal. |
-| GNU Make | Build orchestration | GPL (tool) | Single Makefile. |
-| OSS CAD Suite | All-in-one installer | Various | YosysHQ. Installs entire toolchain. |
+| Tool                    | Purpose                    | License         | Notes                                                                          |
+| ----------------------- | -------------------------- | --------------- | ------------------------------------------------------------------------------ |
+| sv2v                    | SV to Verilog conversion   | MIT             | Converts Ibex SV to Verilog before Yosys. Single Makefile step, deterministic. |
+| Yosys                   | RTL synthesis              | ISC             | `synth_ecp5 -abc9`. Native Verilog 2005.                                       |
+| nextpnr-ecp5            | Place and route            | ISC             | Project Trellis backend. Timing-driven.                                        |
+| ecppack                 | Bitstream generation       | MIT             | Part of Project Trellis.                                                       |
+| openFPGALoader          | FPGA programming           | Apache 2.0      | Programs ULX3S natively.                                                       |
+| Icarus Verilog          | Functional simulation      | GPL (sim only)  | `iverilog` + `vvp`. GTKWave for waveforms.                                     |
+| Verilator               | Fast regression simulation | LGPL (sim only) | C++ compiled. 10–100x faster than Icarus.                                      |
+| SymbiYosys              | Formal verification        | ISC             | BMC and k-induction. All policy module targets.                                |
+| GTKWave                 | Waveform viewer            | GPL (viewer)    | VCD/FST debug.                                                                 |
+| riscv32-unknown-elf-gcc | Firmware compiler          | GPL (compiler)  | `march=rv32imc`. Bare metal.                                                   |
+| GNU Make                | Build orchestration        | GPL (tool)      | Single Makefile.                                                               |
+| OSS CAD Suite           | All-in-one installer       | Various         | YosysHQ. Installs entire toolchain.                                            |
 
 > GPL applies only to the tools themselves — not to RTL or firmware produced by them.
 
@@ -896,20 +923,20 @@ formal:
 
 ## 12. Risks and Mitigations
 
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| NTT engine area exceeds budget | Medium | High | Iterative architecture. 13.7K of 15K estimate. Scratchpad size tunable. |
-| nextpnr timing failure at 50 MHz | Medium | Medium | 50 MHz conservative for ECP5. Pipeline NTT critical path if needed. `-abc9`. |
-| TRNG entropy quality insufficient | Low | Critical | Conservative H_min. Multiple oscillators. SP 800-90B in RTL. Entropy budgeting enforced. |
-| ML-DSA rejection sampling timing leak | Medium | High | Hardware loop. Constant iteration count. Verified by simulation. |
-| BRAM key store lost on power cycle | Certain | Low (v1) | Acknowledged limitation. OTP planned for v2. |
-| KUE policy bypass via bus timing | Low | Critical | KUE formally verified. Bus `err` on any policy violation. No race condition in single-master bus. |
-| PMP misconfiguration in Boot ROM | Low | Critical | Boot ROM is synthesis-time Verilog ROM — cannot be modified at runtime. PMP config formally verified (sby). |
-| Rollback counter reset attack | Low | High | Counter is Boot ROM address space — PMP blocks firmware write. Increment is RTL logic, not firmware. |
-| Noise Protocol implementation error | Medium | High | Reference test vectors. C firmware implementation. Independent code review. |
-| Lifecycle FSM bypass | Low | High | FSM formally verified. State register in hardware — not firmware-writable memory. |
-| Zeroization incomplete before OP_DONE | Low | Medium | OP_DONE interrupt gated on zeroization complete signal in RTL. Cannot be bypassed. |
-| Scope creep in v1 | High | Medium | PRD is scope lock. Section 2.3 is the explicit out-of-scope list. |
+| Risk                                  | Likelihood | Impact   | Mitigation                                                                                                  |
+| ------------------------------------- | ---------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| NTT engine area exceeds budget        | Medium     | High     | Iterative architecture. 13.7K of 15K estimate. Scratchpad size tunable.                                     |
+| nextpnr timing failure at 50 MHz      | Medium     | Medium   | 50 MHz conservative for ECP5. Pipeline NTT critical path if needed. `-abc9`.                                |
+| TRNG entropy quality insufficient     | Low        | Critical | Conservative H_min. Multiple oscillators. SP 800-90B in RTL. Entropy budgeting enforced.                    |
+| ML-DSA rejection sampling timing leak | Medium     | High     | Hardware loop. Constant iteration count. Verified by simulation.                                            |
+| BRAM key store lost on power cycle    | Certain    | Low (v1) | Acknowledged limitation. OTP planned for v2.                                                                |
+| KUE policy bypass via bus timing      | Low        | Critical | KUE formally verified. Bus `err` on any policy violation. No race condition in single-master bus.           |
+| PMP misconfiguration in Boot ROM      | Low        | Critical | Boot ROM is synthesis-time Verilog ROM — cannot be modified at runtime. PMP config formally verified (sby). |
+| Rollback counter reset attack         | Low        | High     | Counter is Boot ROM address space — PMP blocks firmware write. Increment is RTL logic, not firmware.        |
+| Noise Protocol implementation error   | Medium     | High     | Reference test vectors. C firmware implementation. Independent code review.                                 |
+| Lifecycle FSM bypass                  | Low        | High     | FSM formally verified. State register in hardware — not firmware-writable memory.                           |
+| Zeroization incomplete before OP_DONE | Low        | Medium   | OP_DONE interrupt gated on zeroization complete signal in RTL. Cannot be bypassed.                          |
+| Scope creep in v1                     | High       | Medium   | PRD is scope lock. Section 2.3 is the explicit out-of-scope list.                                           |
 
 ---
 
@@ -949,35 +976,35 @@ formal:
 
 ## 14. Glossary
 
-| Term | Definition |
-|---|---|
-| CRQC | Cryptographically Relevant Quantum Computer — a quantum computer capable of running Shor's algorithm to break RSA and ECC |
-| DRBG | Deterministic Random Bit Generator — a cryptographic PRNG seeded from a TRNG, per NIST SP 800-90A |
-| DRK | Device Root Key — the master signing key in slot 0; SIGN_ONLY, NO_EXPORT, NO_OVERWRITE |
-| EBR | Embedded Block RAM — dedicated SRAM blocks in the Lattice ECP5 FPGA fabric |
-| ECP5 | Lattice Semiconductor ECP5 FPGA family — fully open-source toolchain (Yosys/nextpnr/Project Trellis) |
-| FIPS 203 | US Federal Information Processing Standard 203 — specifies ML-KEM |
-| FIPS 204 | US Federal Information Processing Standard 204 — specifies ML-DSA |
-| Ibex | Small 32-bit RISC-V CPU core by lowRISC (Apache 2.0). Quarc's control plane. Synthesised via sv2v + Yosys. SE-proven in OpenTitan and TROPIC01. |
-| KAT | Known Answer Test — NIST-published test vector for cryptographic validation |
-| KUE | Key Usage Enforcer — Quarc's RTL policy engine that enforces per-slot key usage restrictions and prevents firmware from reading key bytes |
-| ML-DSA | Module Lattice Digital Signature Algorithm (FIPS 204) — post-quantum signatures, also known as Dilithium |
-| ML-KEM | Module Lattice Key Encapsulation Mechanism (FIPS 203) — post-quantum key exchange, also known as Kyber |
-| NTT | Number Theoretic Transform — the FFT analogue over a finite field; core mathematical operation in lattice-based PQC |
-| Noise Protocol | Framework for building secure channel protocols with formal security proofs. Pattern IK used for SE host channel. |
-| PMP | Physical Memory Protection — RISC-V hardware extension present in Ibex; configured and locked by Boot ROM before firmware executes |
-| PQC | Post-Quantum Cryptography — cryptographic algorithms believed to resist attacks by quantum computers |
-| PUF | Physically Unclonable Function — a circuit producing a unique response derived from manufacturing variations |
-| RoT | Root of Trust — the hardware component that all subsequent security in the system depends upon |
-| SE | Secure Element — a tamper-resistant microprocessor that stores secrets and performs crypto in isolation |
-| SPI | Serial Peripheral Interface — synchronous serial protocol for host MCU to Quarc communication |
-| sv2v | SystemVerilog-to-Verilog converter (MIT license). Converts Ibex RTL for Yosys synthesis. Deterministic, open source. |
-| TEE | Trusted Execution Environment — isolated compute environment (e.g. AMD SEV-SNP, Intel TDX, Arm CCA) |
-| TRNG | True Random Number Generator — generates randomness from physical entropy source (ring oscillators) |
-| ULX3S | Open hardware FPGA board by Radiona.org featuring Lattice ECP5-85K and full open-source tool support |
-| Wishbone | Open-source hardware bus standard. Quarc uses a simplified Wishbone-compatible single-master bus. |
-| XOF | Extendable Output Function — hash variant producing arbitrary-length output (SHAKE-128, SHAKE-256) |
+| Term           | Definition                                                                                                                                      |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| CRQC           | Cryptographically Relevant Quantum Computer — a quantum computer capable of running Shor's algorithm to break RSA and ECC                       |
+| DRBG           | Deterministic Random Bit Generator — a cryptographic PRNG seeded from a TRNG, per NIST SP 800-90A                                               |
+| DRK            | Device Root Key — the master signing key in slot 0; SIGN_ONLY, NO_EXPORT, NO_OVERWRITE                                                          |
+| EBR            | Embedded Block RAM — dedicated SRAM blocks in the Lattice ECP5 FPGA fabric                                                                      |
+| ECP5           | Lattice Semiconductor ECP5 FPGA family — fully open-source toolchain (Yosys/nextpnr/Project Trellis)                                            |
+| FIPS 203       | US Federal Information Processing Standard 203 — specifies ML-KEM                                                                               |
+| FIPS 204       | US Federal Information Processing Standard 204 — specifies ML-DSA                                                                               |
+| Ibex           | Small 32-bit RISC-V CPU core by lowRISC (Apache 2.0). Quarc's control plane. Synthesised via sv2v + Yosys. SE-proven in OpenTitan and TROPIC01. |
+| KAT            | Known Answer Test — NIST-published test vector for cryptographic validation                                                                     |
+| KUE            | Key Usage Enforcer — Quarc's RTL policy engine that enforces per-slot key usage restrictions and prevents firmware from reading key bytes       |
+| ML-DSA         | Module Lattice Digital Signature Algorithm (FIPS 204) — post-quantum signatures, also known as Dilithium                                        |
+| ML-KEM         | Module Lattice Key Encapsulation Mechanism (FIPS 203) — post-quantum key exchange, also known as Kyber                                          |
+| NTT            | Number Theoretic Transform — the FFT analogue over a finite field; core mathematical operation in lattice-based PQC                             |
+| Noise Protocol | Framework for building secure channel protocols with formal security proofs. Pattern IK used for SE host channel.                               |
+| PMP            | Physical Memory Protection — RISC-V hardware extension present in Ibex; configured and locked by Boot ROM before firmware executes              |
+| PQC            | Post-Quantum Cryptography — cryptographic algorithms believed to resist attacks by quantum computers                                            |
+| PUF            | Physically Unclonable Function — a circuit producing a unique response derived from manufacturing variations                                    |
+| RoT            | Root of Trust — the hardware component that all subsequent security in the system depends upon                                                  |
+| SE             | Secure Element — a tamper-resistant microprocessor that stores secrets and performs crypto in isolation                                         |
+| SPI            | Serial Peripheral Interface — synchronous serial protocol for host MCU to Quarc communication                                                   |
+| sv2v           | SystemVerilog-to-Verilog converter (MIT license). Converts Ibex RTL for Yosys synthesis. Deterministic, open source.                            |
+| TEE            | Trusted Execution Environment — isolated compute environment (e.g. AMD SEV-SNP, Intel TDX, Arm CCA)                                             |
+| TRNG           | True Random Number Generator — generates randomness from physical entropy source (ring oscillators)                                             |
+| ULX3S          | Open hardware FPGA board by Radiona.org featuring Lattice ECP5-85K and full open-source tool support                                            |
+| Wishbone       | Open-source hardware bus standard. Quarc uses a simplified Wishbone-compatible single-master bus.                                               |
+| XOF            | Extendable Output Function — hash variant producing arbitrary-length output (SHAKE-128, SHAKE-256)                                              |
 
 ---
 
-*Quarc Secure Element // PRD v1.1 // 2025 // Proprietary & Confidential*
+_Quarc Secure Element // PRD v1.1 // 2025 // Proprietary & Confidential_

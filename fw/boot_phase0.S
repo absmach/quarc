@@ -5,6 +5,8 @@
 
     .section .text.init
     .globl _start
+    // Ibex boots at boot_addr[31:8]||0x80 == 0x80.
+    .org 0x80
 
 #define UART_BASE    0x20000100
 #define UART_TX_DATA 0x00

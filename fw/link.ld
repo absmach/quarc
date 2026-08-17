@@ -1,8 +1,7 @@
 /* link.ld - Quarc firmware linker script
  *
- * Phase 0 places everything in Boot ROM (16 KiB at 0x0000_0000). DRAM and
- * IRAM regions are declared so later phases can link bigger firmware
- * without needing a new script.
+ * Code and read-only data live in the 32 KiB Boot ROM. Initialised .data is
+ * stored in the ROM (LMA) and copied to DRAM by crt0.S; .bss is zeroed.
  */
 
 OUTPUT_ARCH(riscv)
@@ -11,9 +10,8 @@ ENTRY(_start)
 
 MEMORY
 {
-    BOOTROM (rx)  : ORIGIN = 0x00000000, LENGTH = 16K
-    IRAM    (rx)  : ORIGIN = 0x00004000, LENGTH = 64K
-    DRAM    (rwx) : ORIGIN = 0x00014000, LENGTH = 16K
+    BOOTROM (rx)  : ORIGIN = 0x00000000, LENGTH = 32K
+    DRAM    (rwx) : ORIGIN = 0x00014000, LENGTH = 32K
 }
 
 SECTIONS
@@ -31,17 +29,21 @@ SECTIONS
         *(.srodata*)
     } > BOOTROM
 
-    /* Data sections are reserved here for future phases. Phase 0 has no
-     * .data / .bss because the firmware is a pure-immediate program. */
+    /* Initialised data: stored in the ROM image, copied to DRAM by crt0. */
+    __data_lma = LOADADDR(.data);
     .data : ALIGN(4) {
+        __data_start = .;
         *(.data*)
         *(.sdata*)
-    } > DRAM
+        __data_end = .;
+    } > DRAM AT> BOOTROM
 
     .bss (NOLOAD) : ALIGN(4) {
+        __bss_start = .;
         *(.bss*)
         *(.sbss*)
         *(COMMON)
+        __bss_end = .;
     } > DRAM
 
     /DISCARD/ : { *(.eh_frame) *(.comment) *(.note*) }
