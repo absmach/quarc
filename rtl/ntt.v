@@ -146,8 +146,8 @@ module ntt (
             OP_FWD: zeta_sel = zget(cumf(L) + fblock + 1);
             OP_INV: zeta_sel = zget(127 - (cumi(L) + iblock));
             OP_MUL: begin
-                zeta_sel = zget(64 + widx[7:1]);     // 64 + (p >> 1)
-                if (widx[0]) zeta_sel = Q - zeta_sel; // odd pairs negate
+                zeta_sel = zget(64 + widx[7:1]);
+                if (widx[0]) zeta_sel = Q - zeta_sel;
             end
             default: zeta_sel = 12'h0;
         endcase
