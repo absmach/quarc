@@ -1,0 +1,38 @@
+From aad5432ce06dd02c4ed0246bbc5d6401a1e165eb Mon Sep 17 00:00:00 2001
+From: Rodney Osodo <rodneyosodo@gmail.com>
+Date: Mon, 17 Aug 2026 17:13:18 +0300
+Subject: [PATCH] Fix build with GCC 16: C11 std, explicit zicsr/zifencei,
+ Wno-unused-but-set-variable
+
+GCC 16 defaults to C23 where bool is a keyword (breaking the OpenSBI
+typedef), no longer enables the zicsr/zifencei extensions for the bare
+rv64imac base ISA, and adds a new -Wunused-but-set-variable warning.
+Force -std=gnu11, the full rv64imac_zicsr_zifencei ISA, and suppress
+the new warning to keep the HSS buildable with modern toolchains.
+---
+ application/rules.mk | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/application/rules.mk b/application/rules.mk
+index 38ebb623..c1d32427 100644
+--- a/application/rules.mk
++++ b/application/rules.mk
+@@ -51,12 +51,13 @@ GUICONFIG:=thirdparty/Kconfiglib/guiconfig.py
+ #
+ #
+ PLATFORM_RISCV_ABI=lp64
+-#PLATFORM_RISCV_ISA=rv64imac_zicsr_zifencei
+-PLATFORM_RISCV_ISA=rv64imac
++PLATFORM_RISCV_ISA=rv64imac_zicsr_zifencei
+ 
+ CORE_CFLAGS+=$(MCMODEL) -mstrict-align
+ 
+ CORE_CFLAGS+=-mabi=$(PLATFORM_RISCV_ABI) -march=$(PLATFORM_RISCV_ISA)
++CORE_CFLAGS+=-std=gnu11
++CORE_CFLAGS+=-Wno-unused-but-set-variable
+ 
+ # Debug options
+ CORE_CFLAGS+=-g3 -DDEBUG -pipe -grecord-gcc-switches
+-- 
+2.34.1
+

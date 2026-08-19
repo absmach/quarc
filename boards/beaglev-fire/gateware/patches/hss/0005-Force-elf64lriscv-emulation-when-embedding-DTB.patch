@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rodney Osodo <rodneyosodo@gmail.com>
+Date: Tue, 18 Aug 2026 10:00:00 +0300
+Subject: [PATCH] opensbi: force elf64lriscv emulation when embedding DTB
+
+The embedded device-tree object (mpfs_dtb.o) is produced with
+`ld -r -b binary`. Some RISC-V toolchains (e.g. xPack riscv-none-elf)
+default ld to the 32-bit emulation, producing an elf32-littleriscv
+object that cannot be linked into the 64-bit HSS image ("ABI is
+incompatible ... elf32-littleriscv does not match elf64-littleriscv").
+Request the elf64lriscv emulation explicitly.
+---
+ services/opensbi/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/services/opensbi/Makefile b/services/opensbi/Makefile
+index 0624f174..1a4d02ab 100644
+--- a/services/opensbi/Makefile
++++ b/services/opensbi/Makefile
+@@ -139,7 +139,7 @@ CONFIG_DEFAULT_DEVICE_TREE_UNQUOTED:=$(CONFIG_DEFAULT_DEVICE_TREE:"%"=%)
+ EXTRA_OBJS += $(BINDIR)/services/opensbi/mpfs_dtb.o
+ $(BINDIR)/services/opensbi/mpfs_dtb.o: $(CONFIG_DEFAULT_DEVICE_TREE_UNQUOTED)
+ 	cp $(CONFIG_DEFAULT_DEVICE_TREE_UNQUOTED) $(BINDIR)/services/opensbi/mpfs.dtb
+-	$(CROSS_COMPILE)ld -r -b binary -o $@ $(BINDIR)/services/opensbi/mpfs.dtb
++	$(CROSS_COMPILE)ld -r -b binary -m elf64lriscv -o $@ $(BINDIR)/services/opensbi/mpfs.dtb
+ 	rm $(BINDIR)/services/opensbi/mpfs.dtb
+ 
+ $(CONFIG_DEFAULT_DEVICE_TREE_UNQUOTED): $(CONFIG_DEFAULT_DEVICE_TREE_UNQUOTED:%.dtb=%.dts)
+-- 
+2.39.2

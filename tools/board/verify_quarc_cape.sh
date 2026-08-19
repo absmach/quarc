@@ -17,7 +17,10 @@
 set -u
 cd "$(dirname "$0")" || exit 1
 
-fail() { echo "FAIL: $*" >&2; exit 1; }
+fail() {
+    echo "FAIL: $*" >&2
+    exit 1
+}
 check() { [ "$1" = "$2" ] || fail "$3"; }
 
 echo "== Quarc cape bring-up check =="
@@ -32,7 +35,7 @@ probe=$(./devmem_probe 0x41100F00 2 2>&1) || fail "devmem_probe 0x41100F00 faile
 ID=$(printf '%s\n' "$probe" | sed -n 's/.*41100f00\] = 0x\([0-9a-f]*\).*/\1/p')
 VER=$(printf '%s\n' "$probe" | sed -n 's/.*41100f04\] = 0x\([0-9a-f]*\).*/\1/p')
 
-check "$ID"  "51554152" "cape ID @ 0x41100F00 = '$ID', expected 51554152 (\"QUAR\")"
+check "$ID" "51554152" "cape ID @ 0x41100F00 = '$ID', expected 51554152 (\"QUAR\")"
 check "$VER" "00010000" "cape VER @ 0x41100F04 = '$VER', expected 00010000"
 echo "PASS: cape ID 0x$ID (QUAR), VER 0x$VER"
 
