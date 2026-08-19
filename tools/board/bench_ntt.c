@@ -53,7 +53,9 @@ int main(void) {
     ntt(r);
   }
   double dt = (now_s() - t) / iters;
-  printf("SW ML-KEM NTT (256 coeffs, C O2): %.1f us/op  (%.0f ops/s)\n",
-         dt * 1e6, 1.0 / dt);
+  volatile int16_t sink = (int16_t)(r[0] ^ r[128] ^ r[255]);
+  printf("SW ML-KEM NTT (256 coeffs, C O2): %.1f us/op  (%.0f ops/s)  "
+         "(check %d)\n",
+         dt * 1e6, 1.0 / dt, (int)sink);
   return 0;
 }

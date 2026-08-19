@@ -74,30 +74,57 @@ static double now_s(void) {
   return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
 
+static const uint8_t sha3_empty[32] = {
+    0xa7, 0xff, 0xc6, 0xf8, 0xbf, 0x1e, 0xd7, 0x66, 0x51, 0xc1, 0x47, 0x56,
+    0xa0, 0x61, 0xd6, 0x62, 0xf5, 0x80, 0xff, 0x4d, 0xe4, 0x3b, 0x49, 0xfa,
+    0x82, 0xd8, 0x0a, 0x4b, 0x80, 0xf8, 0x43, 0x4a};
+static const uint8_t sha3_abc[32] = {
+    0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2, 0x04, 0x5c, 0x17, 0x2d,
+    0x6b, 0xd3, 0x90, 0xbd, 0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b,
+    0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43, 0x15, 0x32};
+
+static int check_sha3_256(const char *label, const uint8_t *in, size_t len,
+                          const uint8_t expect[32]) {
+  uint8_t h[32];
+  sha3_256(in, len, h);
+  printf("sha3-256(%s) = ", label);
+  for (int i = 0; i < 32; i++)
+    printf("%02x", h[i]);
+  printf("\n");
+  if (memcmp(h, expect, 32) != 0) {
+    printf("  MISMATCH: expected ");
+    for (int i = 0; i < 32; i++)
+      printf("%02x", expect[i]);
+    printf("\n");
+    return 1;
+  }
+  return 0;
+}
+
 int main(void) {
   static uint8_t msg[4096], h[32];
   for (int i = 0; i < 4096; i++)
     msg[i] = (uint8_t)i;
-  /* self-check: SHA3-256("") */
-  sha3_256((uint8_t *)"", 0, h);
-  printf("sha3-256(\"\") = ");
-  for (int i = 0; i < 16; i++)
-    printf("%02x", h[i]);
-  printf("  (expect a7ffc6f8bf1ed76651c14756a061d662)\n");
-  printf("sha3-256(\"abc\") = ");
-  sha3_256((uint8_t *)"abc", 3, h);
-  for (int i = 0; i < 16; i++)
-    printf("%02x", h[i]);
-  printf("  (expect 3a985da74fe225b2045c172d6bd390bd)\n");
+
+  int fails = 0;
+  fails += check_sha3_256("\"\"", (const uint8_t *)"", 0, sha3_empty);
+  fails += check_sha3_256("\"abc\"", (const uint8_t *)"abc", 3, sha3_abc);
+  if (fails) {
+    printf("self-check FAILED\n");
+    return 1;
+  }
 
   printf("\n=== C software SHA3-256 on BeagleV-Fire RV64 (O2) ===\n");
+  static volatile uint8_t sink = 0;
   for (size_t sz = 64; sz <= 4096; sz *= 4) {
     int iters = sz <= 256 ? 20000 : (sz <= 1024 ? 5000 : 1000);
     double t = now_s();
     for (int i = 0; i < iters; i++)
       sha3_256(msg, sz, h);
+    sink ^= h[0] ^ h[16] ^ h[31];
     double dt = (now_s() - t) / iters;
-    printf("  %5zu B: %9.2f us/op  %7.2f MB/s\n", sz, dt * 1e6, sz / dt / 1e6);
+    printf("  %5zu B: %9.2f us/op  %7.2f MB/s  (check %02x)\n", sz, dt * 1e6,
+           sz / dt / 1e6, sink);
   }
   return 0;
 }
