@@ -306,11 +306,18 @@ module ntt (
                             wa_fsm <= addr_b;
                             wd_fsm <= cb;
                             if (widx == 10'd127) begin
-                                st <= ST_DONE;
+                                // Ensure the final write to addr_b commits before
+                                // done is visible: hold one extra cycle, then
+                                // transition to ST_DONE (fixes a read-before-write
+                                // race observed on real silicon, not in sim).
+                                ph <= 3'd5;
                             end else begin
                                 widx <= widx + 10'd1;
                                 ph   <= 3'd0;
                             end
+                        end
+                        3'd5: begin   // mul: write-commit settle before done
+                            st <= ST_DONE;
                         end
                         default: ph <= 3'd0;
                     endcase
