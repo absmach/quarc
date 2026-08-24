@@ -274,7 +274,11 @@ match the buffers described in Section 1.
       **Verified 2026-08-18:** `devmem_probe 0x41100F00` reads `0x51554152` ("QUAR"),
       VER `0x00010000`; board stable after reboot.
 - [ ] Board harness run prints `MLKEM SW OK`.
-      **Blocked:** the bitstream currently flashed is stale — it does not match this repo's
-      RTL (data path returns wrong values; `quarc_kat` prints `MLKEM SW FAIL`). Rebuild from
-      this repo and re-flash, then re-run `tools/board/verify_quarc_cape.sh` (see the
-      build/flash guide §6.3).
+      **Partially verified 2026-08-19:** the gateware was rebuilt from this repo and
+      re-flashed. On silicon: SHA-3 correct (`sha3_256("abc")` = `a75d983a…` LE),
+      forward/inverse NTT **256/256 correct** — but basemul fails **2/128 pairs**
+      nondeterministically. Root cause: a **−16.5 ns setup-timing violation** on the
+      basemul's chained-modq path at the 18.781 ns cape clock (forward NTT uses a single
+      `modq` and is perfect). A pipelining fix in `ntt.v` improved the violation to
+      −6.3 ns but Synplify re-merged the pipeline stages — timing closure is still open.
+      See the build/flash guide §6.4 for evidence, artifacts, and next steps.

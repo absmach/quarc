@@ -57,11 +57,17 @@ address `0x4110_0000`.
       256-coefficient NTT KAT) under iverilog. §6.3.
 - [x] **Host KAT harness verified** — `tools/host_test` prints `HOST KAT: PASS` (ML-KEM SW OK).
 - [x] **Software baselines measured** — SHA3-256 3.87 MB/s, NTT 79.9 µs (C, `-O2`). §7.2.
-- [ ] **ML-KEM data path on hardware** — blocked: the flashed bitstream is stale (does not
-      match the verified RTL). Rebuild from this repo and re-flash, then run
-      `tools/board/verify_quarc_cape.sh`. §6.3, §7.5.
-- [ ] **Measured hardware benchmarks** — projected figures only (§7.3); need the re-flash
-      above plus an IRQ-driven driver.
+- [x] **Bitstream rebuilt & re-flashed from this repo (2026-08-19)** — incl. the
+      keccak async-reset fix (`keccak_engine.v`/`keccak.v`: synchronous `rst_n` →
+      async, validated deterministic on silicon with soft-reset recovery). §6.3.
+- [x] **Silicon data-path verification (partial)** — SHA-3 correct; forward/inverse NTT
+      256/256 correct; **basemul fails 2/128 pairs nondeterministically**. §6.4.
+- [ ] **NTT basemul timing closure** — root cause confirmed: −16.5 ns setup violation on
+      the chained-modq path at the 18.781 ns cape clock; first pipelining attempt improved
+      to −6.3 ns but Synplify re-merged the stages. Need retiming off / `syn_preserve`,
+      rebuild, re-flash, then `verify_quarc_cape.sh` must print `MLKEM SW OK`. §6.4.
+- [ ] **Measured hardware benchmarks** — projected figures only (§7.3); need the timing
+      closure above plus an IRQ-driven driver.
 
 ---
 
@@ -515,7 +521,7 @@ Verified values:
 The SHA-3 control state machine demonstrably runs (absorb/squeeze complete, meaning the
 Keccak engine executes its 24 rounds), and the APB register reads work.
 
-### 6.3 Known gap: SHA-3 / NTT data-path read-back (stale bitstream on the board)
+### 6.3 SHA-3 / NTT data-path read-back (RESOLVED: stale bitstream replaced 2026-08-19)
 
 Driving the data path through **raw `/dev/mem`**:
 
@@ -544,13 +550,85 @@ CAPE APB TEST: PASS
 
 Since the control path works (ID = "QUAR", absorb/squeeze status transitions fire,
 `perm_done` pulses) but the compute data path disagrees with the (correct) RTL, the
-conclusion is that the **bitstream currently in the board's SPI NOR does not match the
-repo's cape RTL** — it is stale or from a different build. **Next step:** rebuild the
-gateware from this repo (openbeagle CI, or local Libero per `boards/beaglev-fire.md`
-§4.1) and re-flash, then re-run `tools/board/verify_quarc_cape.sh`. The one caveat that
-remains: the registered APB read handshake must be driven with APB setup-edge timing —
-raw `mmap` reads on `/dev/mem` may not reproduce it, which is exactly why the repo ships
-`fw/mlkem_sw.c` (`-DBVF_MMIO`) and `tb_apb_quarc.sv` as the sanctioned accessors.
+conclusion was that the **bitstream then in the board's SPI NOR did not match the
+repo's cape RTL**. **This is now resolved:** the gateware was rebuilt from the repo
+(local Libero, §4) and re-flashed (`full_asyncfix.bin`, 2026-08-19). On-silicon results:
+
+- **SHA-3: correct.** `sha3_256("abc")` prefix `0xA75D983A` read back LE bytes
+  `3a 98 5d a7`; deterministic across runs; recovers after a soft reset.
+- **Forward NTT: perfect.** 256/256 coefficients match the software reference.
+- **Basemul (PointwiseMul): nondeterministic errors — see §6.4**, the one remaining
+  data-path defect, root-caused to a setup-timing violation on the chained-modq path.
+
+The registered APB read-handshake caveat stands: raw `mmap` reads on `/dev/mem` must be
+driven with APB setup-edge timing — which is why the repo ships `fw/mlkem_sw.c`
+(`-DBVF_MMIO`) and `tb_apb_quarc.sv` as the sanctioned accessors.
+
+### 6.4 OPEN: NTT basemul silicon failures = setup-timing violation on the chained modq path
+
+After the §6.3 rebuild/reflash, per-op probes on the board
+(`/home/beagle/probe_ntt.txt`) isolated the failing operation:
+
+| Operation                    | Result on silicon                          |
+| ---------------------------- | ------------------------------------------ |
+| SHA-3 (`sha3_256("abc")`)    | correct, deterministic                     |
+| Forward NTT (256 coeff)      | **256/256 match — perfect**                |
+| Inverse NTT                  | correct                                    |
+| **Basemul / PointwiseMul**   | **2/128 pairs wrong**, error pairs vary run-to-run |
+
+Forward NTT uses a *single* `modq` per butterfly and is flawless; basemul chains
+*two* `modq`s (`modq(a1·b1)` → `·zeta` → `modq`) plus `addq`. The Libero timing report
+(`work/libero/designer/QUARC_D833AF506FC7DB70459A187B/max_report.json`) confirms why:
+
+- Worst setup slack **−16.519 ns** at the cape clock (PLL OUT3 / FIC3, constraint
+  **18.781 ns**): minimum period required **35.165 ns** over **45 logic levels**,
+  path `modq_3.p_8_mulonly_0[23:0] → wd_fsm[9]`.
+- **620/1000 reported paths negative** (612 inside `u_ntt`) — the violation is
+  systematic, not marginal.
+- A path that fails setup by −16 ns samples metastable/garbage data — exactly the
+  observed "a few wrong coefficients, different each run" signature. Simulation
+  (zero-delay or unit-delay) cannot catch this, which is why every KAT passed in
+  iverilog while silicon failed.
+
+**Fix attempt #1 (2026-08-20): FSM pipelining of the basemul datapath.**
+`ntt.v` was restructured to split the chain across cycles — new registers
+`m_p0/m_p1/m_q0/m_q1` (products, one `modq` deep), `m_p1z` (`modq(m_p1·zeta)`),
+and MUL phases extended ph3→ph7 (latch products → zeta-multiply → write ca →
+write cb → settle). Validated in simulation: `tb_apb_quarc.sv` PASS plus a dedicated
+4-group hardware-KAT testbench (`/tmp/tb_ntt_bm.sv`: fwd1, fwd2, inv, basemul — 4/4).
+
+**Result: improved but NOT closed.** Rebuild `max_report.json` (design version 9944):
+
+| Metric                  | Before pipeline | After pipeline |
+| ----------------------- | --------------- | -------------- |
+| Worst setup slack       | −16.519 ns      | **−6.315 ns**  |
+| Required min period     | 35.165 ns       | 30.858 ns      |
+| Worst path logic levels | 45              | 42             |
+
+The worst path (`widx[2] → wd_fsm[10]`, slack −6.315 ns) still traverses both MACC
+chains (`modq_0.p_2_mulonly` → `WideMult_*` → `modq_0.un2_r_mulonly`) and the `addq`
+into `wd_fsm` **in one OUT3 cycle**: Synplify merged/re-shared the new pipeline
+registers back into the combinational cone (the regs exist as capture endpoints —
+168 paths end at `m_p1[..]/m_p1z[..]` — but no top-1000 path *launches* from them).
+The fixed sources are synced into this repo (`rtl/ntt.v` and the board-gateware copy,
+md5 `f8871591…`); they are functionally correct but do not yet meet timing.
+
+**Next steps (in order):**
+
+1. Stop Synplify from collapsing the pipeline: either disable register retiming /
+   balancing for the synthesis run, or protect the stages with `syn_preserve`
+   attributes (or an equivalent structural barrier the retimer cannot cross).
+   Alternative: pre-register `zeta_sel` (currently combinational from `widx` through
+   the `zget` ROM mux) so no `widx → zeta → multiply` path exists at all.
+2. Rebuild (§4), confirm `max_report.json` shows OUT3 worst slack ≥ 0.
+3. Build the full image, flash (§5), re-run the probes + `quarc_kat`:
+   basemul must report 0/128 and the KAT must print `MLKEM SW OK`.
+4. Then proceed to the benchmarks (§7.5).
+
+Artifacts: pre-fix flash backup `/home/beagle/mtd0_pre_asyncfix_backup.bin`;
+flashed image `/home/beagle/full_asyncfix.bin`
+(md5 `505301f8ba372ee80a7ef49611f50207`); probe logs `/home/beagle/probe_ntt.txt`,
+`probe_sha3.txt`.
 
 ---
 
@@ -558,8 +636,9 @@ raw `mmap` reads on `/dev/mem` may not reproduce it, which is exactly why the re
 
 Measured on the board (PolarFire SoC `MPFS025T`, 4× RV64GC application cores ~625 MHz,
 Debian Trixie kernel 6.12.48). The CPU figures are **measured and reproducible**; the
-hardware figures are **projected from the RTL** because the board currently runs a stale
-bitstream (see §6.3) whose SHA-3/NTT data path does not yet return valid data.
+hardware figures remain **projected from the RTL** until the NTT basemul timing
+violation is closed (§6.4) — SHA-3 and forward-NTT data paths are already proven on
+silicon (§6.3), but `quarc_kat` cannot pass end-to-end until basemul is fixed.
 
 ### 7.1 What the numbers mean (and what they don't)
 
@@ -609,10 +688,9 @@ the CPU to run other work concurrently. The NTT is the smaller contributor.
 
 ### 7.5 What must happen before real silicon numbers
 
-1. Rebuild the bitstream from this repo (openbeagle CI, or local Libero per
-   `boards/beaglev-fire.md` §4.1) and re-flash — the current SPI NOR image predates the
-   verified RTL.
-2. Re-run `tools/board/verify_quarc_cape.sh`; it must print `MLKEM SW OK`.
+1. Close the NTT basemul timing violation (§6.4): protect the pipeline stages from
+   Synplify retiming (or pre-register `zeta_sel`), rebuild, confirm OUT3 slack ≥ 0.
+2. Re-flash and re-run `tools/board/verify_quarc_cape.sh`; it must print `MLKEM SW OK`.
 3. Benchmark with a driver that issues one request and blocks on an IRQ (the cape
    exposes `irq_done`), not a STATUS-polling loop — this is what turns the projected
    numbers into measured ones.
