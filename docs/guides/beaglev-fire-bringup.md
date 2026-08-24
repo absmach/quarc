@@ -4,22 +4,21 @@ How to bring up the Quarc **Step 1** partition on a BeagleV-Fire board from a
 Linux host: SSH in, run the ML-KEM-768 KAT self-test against the hardware MMIO
 firmware, and program the Step 1 gateware into the PolarFire fabric.
 
-> **Related docs:** [`docs/README.md`](../README.md) — documentation index ·
-> [`Guide 2: gateware-build-flash.md`](gateware-build-flash.md) — build/flash/verify
-> details, benchmarks, and the silicon timing investigation.
+Build/flash details, benchmarks, and the silicon timing investigation are in
+[Guide 2](gateware-build-flash.md).
 
-## The five-step path (overview)
+## The five steps
 
-| Step | What                                            | Where                    | You are done when…                          |
-| ---- | ----------------------------------------------- | ------------------------ | ------------------------------------------- |
-| 1    | Host self-test (no hardware)                    | your Linux host          | `HOST KAT: PASS`                            |
-| 2    | SoC-level simulation                            | your Linux host          | `MLKEM SW OK` on simulated UART *(slow)*    |
-| 3    | Build cape gateware                             | Libero / openbeagle CI   | `mpfs_bitstream.spi` exported               |
-| 4    | Flash the board & verify fabric is live         | BeagleV-Fire             | ID register reads `0x51554152` ("QUAR")     |
-| 5    | Run the ML-KEM KAT on the hard cores            | BeagleV-Fire             | `MLKEM SW OK`                               |
+| Step | What                        | Where                  | Done when                                |
+| ---- | --------------------------- | ---------------------- | ---------------------------------------- |
+| 1    | Host self-test              | your Linux host        | `HOST KAT: PASS`                         |
+| 2    | SoC-level simulation        | your Linux host        | `MLKEM SW OK` on simulated UART _(slow)_ |
+| 3    | Build cape gateware         | Libero / openbeagle CI | `mpfs_bitstream.spi` exported            |
+| 4    | Flash and verify fabric     | BeagleV-Fire           | ID register reads `0x51554152` ("QUAR")  |
+| 5    | Run the ML-KEM KAT on board | BeagleV-Fire           | `MLKEM SW OK`                            |
 
-Steps 1 and 4–5 are fully working today; step 2 is slow but works; step 5's
-full pass is blocked by an NTT basemul timing issue (see Guide 2 §6.4).
+Steps 1 and 4–5 work today. Step 2 works but is slow. Step 5's full pass is
+blocked by an NTT basemul timing issue (see Guide 2 §6.4).
 
 ## Step 1 partition (two-step C/FPGA split)
 
@@ -159,12 +158,12 @@ and has the cape `ADD_CAPE.tcl` sourced from the MSS recursive build with a
 
 Cape window register map (`paddr[11:0]`):
 
-| Offset    | Access | Content                       |
-| --------- | ------ | ----------------------------- |
-| `0x0000`–`0x001F` | sha3 | CTRL, STATUS, MODE, DATA_IN, DATA_OUT, LEN, SQ_LEN, IRQ_EN |
-| `0x0800`–`0x081F` | ntt  | CTRL, STATUS, COEFF           |
-| `0x0F00`  | RO     | `ID` = `0x5155_4152` (`"QUAR"`) |
-| `0x0F04`  | RO     | `VER` = `0x0001_0000`         |
+| Offset            | Access | Content                                                    |
+| ----------------- | ------ | ---------------------------------------------------------- |
+| `0x0000`–`0x001F` | sha3   | CTRL, STATUS, MODE, DATA_IN, DATA_OUT, LEN, SQ_LEN, IRQ_EN |
+| `0x0800`–`0x081F` | ntt    | CTRL, STATUS, COEFF                                        |
+| `0x0F00`          | RO     | `ID` = `0x5155_4152` (`"QUAR"`)                            |
+| `0x0F04`          | RO     | `VER` = `0x0001_0000`                                      |
 
 The bridge strobes the peripherals on the APB setup phase (`psel && !penable`)
 so each transfer commits once, and drives `PRDATA` combinationally from the
@@ -242,6 +241,7 @@ bitstream for every yaml in `custom-fpga-design/` on their Libero runner
 
 `fw/mlkem_sw.c` drives the sha3/ntt coprocessors over MMIO. For the board it
 is built with `-DBVF_MMIO`, which
+
 - redirects `put32`/`get32` through an `mmap` of `/dev/mem` (the two fabric
   bases share the single 4 KiB page at `0x4110_0000`), and
 - re-bases `SHA3_BASE`/`NTT_BASE` to `0x4110_0000` / `0x4110_0800`, and
@@ -278,7 +278,7 @@ match the buffers described in Section 1.
 - [x] `make run` in `tools/host_test` prints `HOST KAT: PASS` (Section 1).
       **Verified 2026-08-19:** outputs `MLKEM SW OK` / `HOST KAT: PASS`.
 - [ ] `make sim-mlkem-sw-soc` prints `MLKEM SW OK` in simulation (Section 2).
-      *In progress:* the full ML-KEM-768 KAT through the Ibex SoC RTL sim is very slow
+      _In progress:_ the full ML-KEM-768 KAT through the Ibex SoC RTL sim is very slow
       (>7 min without completing). The cape APB bridge itself is verified by
       `tb_apb_quarc.sv` (269/269 PASS); this SoC-level KAT still needs a longer run.
 - [x] `make synth-step1` reports the Section 3 fit.

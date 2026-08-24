@@ -1,12 +1,10 @@
 # Quarc — Architecture & Technical Reference
 
-Technical reference moved from the repo root README: SoC architecture,
-deployment partitioning, measured budgets, memory map, command set, security
-properties, toolchain, and conventions.
+SoC architecture, deployment partitioning, measured budgets, memory map,
+command set, security properties, toolchain, and conventions.
 
-> For requirements and rationale see [`prd.md`](prd.md); for phase-by-phase
-> build tasks see [`implementation-plan.md`](implementation-plan.md); for
-> current progress see [`README.md`](README.md) (status dashboard).
+Requirements and rationale are in [`prd.md`](prd.md); phase-by-phase build
+tasks in [`implementation-plan.md`](implementation-plan.md).
 
 ---
 
@@ -168,10 +166,10 @@ is a Phase 5–7 concern, still in progress.
 
 ### FPGA targets
 
-| Board        | FPGA                                   | Flow                           | Partition                                                                             | Status                                                                                                                                                                                                                    |
-| ------------ | -------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Board        | FPGA                                   | Flow                           | Partition                                                                             | Status                                                                                                                                                                                    |
+| ------------ | -------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins)    | Step 1: crypto in C (`mlkem_sw.c` over sha3+ntt MMIO); no hw ML-KEM/ML-DSA controller | Cape gateware built + flashed; SHA-3 + fwd/inv NTT verified on silicon; **NTT basemul timing closure open** (see [`guides/gateware-build-flash.md`](guides/gateware-build-flash.md) §6.4) |
-| ULX3S        | Lattice ECP5-85K (84k LUTs)            | yosys + nextpnr-ecp5 + ecppack | Step 2: move ML-KEM/ML-DSA/KUE/keystore/SPI back into fabric; C becomes thin driver   | Primary dev target; bitstream builds, 27 MHz                                                                                                                                                                              |
+| ULX3S        | Lattice ECP5-85K (84k LUTs)            | yosys + nextpnr-ecp5 + ecppack | Step 2: move ML-KEM/ML-DSA/KUE/keystore/SPI back into fabric; C becomes thin driver   | Primary dev target; bitstream builds, 27 MHz                                                                                                                                              |
 
 For the BeagleV-Fire (Step 1), the SE runs in the PolarFire fabric and is driven
 by the SoC's own RISC-V cores (Linux) over an AXI/SPI bridge, replacing the
@@ -372,7 +370,7 @@ quarc/
 │       │   ├── patches/                # HSS (0001–0005) + MSS (.vh copy) build patches
 │       │   └── tb_apb_quarc.sv         # 269-check APB cape testbench
 │       └── tools/board/                # devmem_probe, quarc_kat, bench_sha3/ntt, verify_quarc_cape.sh
-├── docs/                  # you are here — all documentation
+├── docs/                  # all documentation
 ├── ibex/                  # Git submodule — do not edit
 │   └── rtl/               # Ibex SystemVerilog sources
 ├── rtl/                   # ALL Quarc RTL — Verilog 2005 only

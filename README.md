@@ -1,72 +1,54 @@
 # Quarc
 
-A post-quantum Secure Element for IoT: hardware-accelerated ML-KEM-768 and
-ML-DSA-65 (FIPS 203/204), hardware-enforced key policy, and secure boot — the
-hardware root of trust for connected devices, built on open FPGA tooling.
-
-> _"A TROPIC01-class Secure Element after the PQC transition."_
+Quarc is a post-quantum Secure Element for IoT. It runs ML-KEM-768 and
+ML-DSA-65 (NIST FIPS 203/204) in FPGA fabric, keeps key material out of
+firmware reach, and verifies every boot image against a monotonic rollback
+counter. Built entirely with open tooling (Yosys, nextpnr, SymbiYosys);
+no Vivado, no Quartus.
 
 ## Features
 
-- **Post-quantum crypto** — ML-KEM-768 + ML-DSA-65 per NIST FIPS 203/204
-- **Hardware key policy** — keys never leave the trust boundary; usage enforced in RTL (KUE), not firmware
-- **Secure boot** — ML-DSA-verified firmware with monotonic anti-rollback
-- **Encrypted host channel** — Noise IK (ML-KEM + X25519 hybrid) over SPI, AES-256-GCM
-- **True entropy** — TRNG with SP 800-90B health tests in RTL; SHAKE-256 DRBG
-- **Open toolchain** — Yosys / nextpnr / SymbiYosys; no Vivado, no Quartus
+- ML-KEM-768 and ML-DSA-65 per FIPS 203/204
+- Key usage enforced in RTL, not firmware convention
+- Secure boot with anti-rollback
+- Noise IK host channel (ML-KEM + X25519 hybrid, AES-256-GCM)
+- TRNG with SP 800-90B health tests, SHAKE-256 DRBG
 
 ## Status
 
-| Phase | Deliverable                               | Status                                       |
-| :---: | ----------------------------------------- | -------------------------------------------- |
-|  0–2  | Foundation, Keccak/SHA-3, entropy         | ✅ verified                                  |
-|   3   | NTT engine                                | 🟡 sim-verified; silicon timing closure open |
-|   4   | ML-KEM-768                                | 🟡 software path passes full KAT             |
-|  5–8  | ML-DSA, security policy, SPI, integration | ⚪ not started                               |
+| Phase | Deliverable                               | Status                                    |
+| :---: | ----------------------------------------- | ----------------------------------------- |
+|  0–2  | Foundation, Keccak/SHA-3, entropy         | verified                                  |
+|   3   | NTT engine                                | sim-verified; basemul timing closure open |
+|   4   | ML-KEM-768                                | software path passes the full KAT         |
+|  5–8  | ML-DSA, security policy, SPI, integration | not started                               |
 
-Running today: full ML-KEM-768 KAT against the fabric on a BeagleV-Fire
-(SHA-3 and NTT butterflies verified on silicon) — details in the
+The full ML-KEM-768 KAT currently runs against the fabric on a BeagleV-Fire;
+SHA-3 and the NTT butterflies are verified on silicon. Details in the
 [status dashboard](docs/README.md).
 
-## Quick Start
+## Quick start
 
 ```bash
-# 1. Clone (with Ibex submodule)
 git clone <repo-url> quarc && cd quarc
 git submodule update --init --recursive
 
-# 2. Run the host self-test — no hardware required
-cd tools/host_test && make run
-#   → expect: HOST KAT: PASS
+# host self-test, no hardware needed
+cd tools/host_test && make run    # expect: HOST KAT: PASS
 
-# 3. Simulate / build
-make sim        # full SoC simulation
-make synth      # synthesis + LUT report
+# simulation and synthesis
+make sim      # full SoC simulation
+make synth    # synthesis + LUT report
 ```
 
-Bring up real hardware (build gateware → flash → verify → benchmark):
-see [Guide 1](docs/guides/beaglev-fire-bringup.md).
+To bring up real hardware, follow [Guide 1](docs/guides/beaglev-fire-bringup.md).
 
 ## Documentation
 
-All documentation lives in [`docs/`](docs/README.md):
+All documentation is under [`docs/`](docs/README.md):
 
-| Document                                                                | What it covers                                      |
-| ----------------------------------------------------------------------- | --------------------------------------------------- |
-| [Product Requirements](docs/prd.md)                                     | Goals, threat model, security policy, phases        |
-| [Implementation Plan](docs/implementation-plan.md)                      | Phase-by-phase tasks with acceptance criteria       |
-| [Architecture & Technical Reference](docs/architecture.md)              | SoC diagram, memory map, command set, budgets       |
-| [Guide 1 — Board Bring-Up](docs/guides/beaglev-fire-bringup.md)         | Host test → flash → on-board KAT                    |
-| [Guide 2 — Build / Flash / Verify](docs/guides/gateware-build-flash.md) | Toolchain setup, Libero build, flashing, benchmarks |
-| [Status Dashboard](docs/README.md)                                      | Current progress, what's blocked                    |
-
-## Contributing
-
-Internal project — see [`docs/implementation-plan.md`](docs/implementation-plan.md)
-for how work is structured, and the RTL conventions in
-[`docs/architecture.md`](docs/architecture.md) before submitting changes.
-
-## License
-
-The synthesizable path uses only permissive-licensed components (MIT, ISC, BSD, Apache 2.0); no GPL
-or LGPL in the synthesis path.
+- [Product requirements](docs/prd.md)
+- [Implementation plan](docs/implementation-plan.md)
+- [Architecture reference](docs/architecture.md)
+- [Guide 1: board bring-up](docs/guides/beaglev-fire-bringup.md)
+- [Guide 2: gateware build, flash, verify](docs/guides/gateware-build-flash.md)

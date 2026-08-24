@@ -6,14 +6,13 @@ flashing it to the board, and verifying it on the target. It includes the toolch
 environment, the full list of issues encountered (and their fixes), the exact commands
 used, and benchmark results comparing the fabric against the CPU.
 
-> **Related docs:** [`docs/README.md`](../README.md) — documentation index ·
-> [`Guide 1: beaglev-fire-bringup.md`](beaglev-fire-bringup.md) — board bring-up
-> (KAT self-test, MMIO map, checklist) · [`prd.md`](../prd.md) · [`implementation-plan.md`](../implementation-plan.md).
+Board bring-up basics (KAT self-test, MMIO map, checklist) are in
+[Guide 1](beaglev-fire-bringup.md).
 
 > **Status (2026-08-20):** All build/flash steps verified end-to-end. The gateware builds,
 > flashes, and boots on the board; fabric ID/status registers verified. On silicon:
 > SHA-3 correct and deterministic, forward/inverse NTT 256/256 correct.
-> **Open item:** NTT basemul fails 2/128 pairs nondeterministically — root-caused to a
+> Open item: NTT basemul fails 2/128 pairs nondeterministically, root-caused to a
 > setup-timing violation on the chained-modq path (§6.4). Full ML-KEM KAT on hardware
 > waits on timing closure (§7.5).
 
@@ -81,14 +80,14 @@ address `0x4110_0000`.
 
 The six commands that matter (detailed in the sections that follow):
 
-| # | Action                          | Command (host unless noted)                                   | Section |
-| - | ------------------------------- | ------------------------------------------------------------- | ------- |
-| 1 | Start the license daemons       | `lmgrd -c …` (one-time per boot; §3.3 script)                 | §3.3    |
-| 2 | Launch the build                | `distrobox enter libero2204 -- /tmp/run_build.sh`             | §4.2    |
-| 3 | Collect the artifacts           | `work/…/LinuxProgramming/{mpfs_bitstream.spi,mpfs_dtbo.spi}`  | §4.7    |
-| 4 | Copy to board + flash           | `scp` then `update-gateware.sh` on the board                  | §5.1    |
-| 5 | Verify fabric is live           | `sudo ./devmem_probe 0x41100F00` on the board                 | §6.2    |
-| 6 | Run the ML-KEM KAT              | `sudo ./quarc_kat` on the board                               | §6.3    |
+| #   | Action                    | Command (host unless noted)                                  | Section |
+| --- | ------------------------- | ------------------------------------------------------------ | ------- |
+| 1   | Start the license daemons | `lmgrd -c …` (one-time per boot; §3.3 script)                | §3.3    |
+| 2   | Launch the build          | `distrobox enter libero2204 -- /tmp/run_build.sh`            | §4.2    |
+| 3   | Collect the artifacts     | `work/…/LinuxProgramming/{mpfs_bitstream.spi,mpfs_dtbo.spi}` | §4.7    |
+| 4   | Copy to board + flash     | `scp` then `update-gateware.sh` on the board                 | §5.1    |
+| 5   | Verify fabric is live     | `sudo ./devmem_probe 0x41100F00` on the board                | §6.2    |
+| 6   | Run the ML-KEM KAT        | `sudo ./quarc_kat` on the board                              | §6.3    |
 
 If a step fails, jump straight to §10 (troubleshooting checklist) or the
 per-section "Issue:" notes — every blocker hit during the real build is
@@ -594,15 +593,15 @@ driven with APB setup-edge timing — which is why the repo ships `fw/mlkem_sw.c
 After the §6.3 rebuild/reflash, per-op probes on the board
 (`/home/beagle/probe_ntt.txt`) isolated the failing operation:
 
-| Operation                    | Result on silicon                          |
-| ---------------------------- | ------------------------------------------ |
-| SHA-3 (`sha3_256("abc")`)    | correct, deterministic                     |
-| Forward NTT (256 coeff)      | **256/256 match — perfect**                |
-| Inverse NTT                  | correct                                    |
-| **Basemul / PointwiseMul**   | **2/128 pairs wrong**, error pairs vary run-to-run |
+| Operation                  | Result on silicon                                  |
+| -------------------------- | -------------------------------------------------- |
+| SHA-3 (`sha3_256("abc")`)  | correct, deterministic                             |
+| Forward NTT (256 coeff)    | **256/256 match — perfect**                        |
+| Inverse NTT                | correct                                            |
+| **Basemul / PointwiseMul** | **2/128 pairs wrong**, error pairs vary run-to-run |
 
-Forward NTT uses a *single* `modq` per butterfly and is flawless; basemul chains
-*two* `modq`s (`modq(a1·b1)` → `·zeta` → `modq`) plus `addq`. The Libero timing report
+Forward NTT uses a _single_ `modq` per butterfly and is flawless; basemul chains
+_two_ `modq`s (`modq(a1·b1)` → `·zeta` → `modq`) plus `addq`. The Libero timing report
 (`work/libero/designer/QUARC_D833AF506FC7DB70459A187B/max_report.json`) confirms why:
 
 - Worst setup slack **−16.519 ns** at the cape clock (PLL OUT3 / FIC3, constraint
@@ -634,7 +633,7 @@ The worst path (`widx[2] → wd_fsm[10]`, slack −6.315 ns) still traverses bot
 chains (`modq_0.p_2_mulonly` → `WideMult_*` → `modq_0.un2_r_mulonly`) and the `addq`
 into `wd_fsm` **in one OUT3 cycle**: Synplify merged/re-shared the new pipeline
 registers back into the combinational cone (the regs exist as capture endpoints —
-168 paths end at `m_p1[..]/m_p1z[..]` — but no top-1000 path *launches* from them).
+168 paths end at `m_p1[..]/m_p1z[..]` — but no top-1000 path _launches_ from them).
 The fixed sources are synced into this repo (`rtl/ntt.v` and the board-gateware copy,
 md5 `f8871591…`); they are functionally correct but do not yet meet timing.
 
@@ -667,7 +666,7 @@ silicon (§6.3), but `quarc_kat` cannot pass end-to-end until basemul is fixed.
 
 ### 7.1 What the numbers mean (and what they don't)
 
-The only numbers that can be *honestly* published today are the CPU software baselines
+The only numbers that can be _honestly_ published today are the CPU software baselines
 and the fabric MMIO access cost. The "hardware" rows are fabric-bound projections from
 the verified RTL (keccak = 24 rounds at 1 round/clock = 26 cycles/perm; NTT = 896
 butterflies × 4 cycles = 3,584 cycles), using the on-board `fabric-clk3` = 50 MHz.
@@ -678,25 +677,25 @@ butterflies × 4 cycles = 3,584 cycles), using the on-board `fabric-clk3` = 50 M
 
 ### 7.2 Measured (board, reproducible)
 
-| Metric                                                      | Value        | Notes                                   |
-| ----------------------------------------------------------- | ------------ | --------------------------------------- |
-| Fabric register read (single mmap, `-DBVF_MMIO` style)      | **0.009 µs** | ~112k reads/s; 4 KiB page at 0x4110_0000 |
-| Fabric register write (single mmap)                          | 0.008 µs     | ~123k writes/s                          |
-| **SW SHA3-256 (C, `-O2`)** 64 B                             | 34.7 µs      | 1.85 MB/s                               |
-| **SW SHA3-256 (C, `-O2`)** 1 KiB                            | 274.2 µs     | 3.73 MB/s                               |
-| **SW SHA3-256 (C, `-O2`)** 4 KiB                            | 1059.5 µs    | 3.87 MB/s                               |
-| **SW ML-KEM NTT-256 (C, `-O2`)**                             | 79.9 µs      | 12.5k ops/s                             |
-| Cape fabric clock (`fabric-clk3`, from sysfs)                | 50 MHz       | read from `/sys/kernel/debug/clk`       |
+| Metric                                                 | Value        | Notes                                    |
+| ------------------------------------------------------ | ------------ | ---------------------------------------- |
+| Fabric register read (single mmap, `-DBVF_MMIO` style) | **0.009 µs** | ~112k reads/s; 4 KiB page at 0x4110_0000 |
+| Fabric register write (single mmap)                    | 0.008 µs     | ~123k writes/s                           |
+| **SW SHA3-256 (C, `-O2`)** 64 B                        | 34.7 µs      | 1.85 MB/s                                |
+| **SW SHA3-256 (C, `-O2`)** 1 KiB                       | 274.2 µs     | 3.73 MB/s                                |
+| **SW SHA3-256 (C, `-O2`)** 4 KiB                       | 1059.5 µs    | 3.87 MB/s                                |
+| **SW ML-KEM NTT-256 (C, `-O2`)**                       | 79.9 µs      | 12.5k ops/s                              |
+| Cape fabric clock (`fabric-clk3`, from sysfs)          | 50 MHz       | read from `/sys/kernel/debug/clk`        |
 
 ### 7.3 Projected hardware (fabric-bound, RTL-derived)
 
-| Operation              | HW (fabric-bound) | SW (C)   | **Speedup** |
-| ---------------------- | ----------------- | -------- | ----------- |
-| SHA3-256, 64 B         | 1.0 µs            | 34.7 µs  | **33×**     |
-| SHA3-256, 256 B        | 1.6 µs            | 68.8 µs  | **44×**     |
-| SHA3-256, 1 KiB        | 4.7 µs            | 274.2 µs | **59×**     |
-| SHA3-256, 4 KiB        | 16.6 µs           | 1059.5 µs| **64×**     |
-| ML-KEM NTT-256 (fwd)   | 71.7 µs           | 79.9 µs  | **1.1×**    |
+| Operation            | HW (fabric-bound) | SW (C)    | **Speedup** |
+| -------------------- | ----------------- | --------- | ----------- |
+| SHA3-256, 64 B       | 1.0 µs            | 34.7 µs   | **33×**     |
+| SHA3-256, 256 B      | 1.6 µs            | 68.8 µs   | **44×**     |
+| SHA3-256, 1 KiB      | 4.7 µs            | 274.2 µs  | **59×**     |
+| SHA3-256, 4 KiB      | 16.6 µs           | 1059.5 µs | **64×**     |
+| ML-KEM NTT-256 (fwd) | 71.7 µs           | 79.9 µs   | **1.1×**    |
 
 Derivation: `fabric-clk3` = 50 MHz → 20 ns/cycle. Keccak-f[1600] = 24 rounds + start/done
 ≈ 26 cycles = 0.52 µs. SHA3-256 rate = 136 B/block; a message of length `L` needs
@@ -771,7 +770,7 @@ Paths are relative to this repository (`absmach/quarc`) unless noted.
 | `boards/beaglev-fire/gateware/tb_apb_quarc.sv`                                                  | 269-check APB cape testbench (iverilog)                         |
 | `tools/board/devmem_probe.c` + `Makefile`                                                       | fabric MMIO probe (`QUAR` ID check)                             |
 | `tools/board/quarc_kat` (builds `fw/mlkem_sw.c -DBVF_MMIO`)                                     | ML-KEM-768 KAT against the fabric                               |
-| `tools/board/bench_sha3.c`, `bench_ntt.c`                                                      | SW SHA3-256 / NTT-256 baselines (self-contained, §7.2 figures)  |
+| `tools/board/bench_sha3.c`, `bench_ntt.c`                                                       | SW SHA3-256 / NTT-256 baselines (self-contained, §7.2 figures)  |
 | `tools/board/verify_quarc_cape.sh`                                                              | one-shot post-flash bring-up check                              |
 | `fw/mlkem_sw.c`, `fw/mlkem_kat.h`                                                               | ML-KEM-768 software firmware (MMIO coprocessor drivers)         |
 | `kat/ntt_in1.txt`, `kat/ntt_fwd1.txt`                                                           | NTT KAT pair for `tb_apb_quarc.sv` (gitignored, local)          |

@@ -17,7 +17,7 @@
 | Document           | Quarc PRD v1.1                                                                                                                                                                                     |
 | Status             | DRAFT — Internal Only                                                                                                                                                                              |
 | Classification     | Proprietary & Confidential                                                                                                                                                                         |
-| FPGA Board         | ULX3S — Lattice ECP5-85K (84K LUTs) + BeagleV-Fire — PolarFire MPFS025T (23k LEs, Step 1)                                                                                                               |
+| FPGA Board         | ULX3S — Lattice ECP5-85K (84K LUTs) + BeagleV-Fire — PolarFire MPFS025T (23k LEs, Step 1)                                                                                                          |
 | CPU                | Ibex RV32IMC (Apache 2.0, via sv2v + Yosys)                                                                                                                                                        |
 | HDL Language       | Verilog 2005 (all Quarc RTL) + sv2v for Ibex CPU only                                                                                                                                              |
 | Toolchain          | Yosys + nextpnr + sv2v + SymbiYosys + Icarus — 100% open source                                                                                                                                    |
@@ -300,30 +300,30 @@ Single-master Wishbone-lite bus. Ibex is the only bus master. All peripherals ar
 > minimal fabric; Step 2 (ULX3S, 84k) returns the hardware ML-KEM/ML-DSA
 > controllers, KUE, keystore, and SPI slave to fabric. See README § "Two-step
 > deployment plan" for the authoritative partition. The table below documents
-> the *estimated* per-module cost for the Step 2 (hardware-accelerated) fabric.
+> the _estimated_ per-module cost for the Step 2 (hardware-accelerated) fabric.
 > **Step 1 bring-up build** (ML-KEM + TRNG/DRBG removed, `build/synth_step1_v4.log`)
 > measures **18,832 LUT4 + 10,554 FF** and fits the 23k MPFS025T.
 
-| Module                  | Est. LUTs       | Source           | Notes                                                         |
-| ----------------------- | --------------- | ---------------- | ------------------------------------------------------------- |
-| Ibex RV32IMC            | ~3,500          | Apache 2.0 (OSS) | Control plane only. Not on crypto path. Synthesised via sv2v. |
-| System Bus              | ~200            | Proprietary      | Custom Wishbone-lite + formal verification.                   |
-| Keccak/SHAKE engine     | ~10,200         | Proprietary      | Shared by all consumers. Full-width 1600-bit round.           |
-| NTT engine (shared)     | ~3,000          | Proprietary      | Parameterised for q=3329 and q=8380417.                       |
-| ML-KEM-768 controller   | ~1,500+          | Proprietary      | State machine. Drives NTT and Keccak engines.                 |
-| ML-DSA-65 controller    | ~2,000+          | Proprietary      | State machine. Rejection sampler. Drives NTT.                 |
-| Key Usage Enforcer      | ~200            | Proprietary      | HW policy engine. Enforces SIGN/DECAP/NO-EXPORT per slot.     |
-| TRNG                    | ~300            | Proprietary      | Ring oscillator. SP 800-90B RCT + APT health tests.           |
-| DRBG (SHAKE-256)        | ~200            | Proprietary      | Auto-reseed from TRNG. Entropy budgeting enforced.            |
-| SPI slave               | ~400            | Proprietary      | Mode 0/3. Command framing. 10 MHz target.                     |
-| Key store controller    | ~200 + BRAM     | Proprietary      | BRAM-backed. DMA-only access from crypto engines.             |
-| Boot ROM                | ~100 + BRAM     | Proprietary      | Verilog ROM. PMP config. ML-DSA root key. Rollback counter.   |
-| Lifecycle state machine | ~150            | Proprietary      | 4-state FSM. One-way transitions. HW enforced.                |
-| Rollback counter        | ~100            | Proprietary      | Monotonic. BRAM-backed (v1). OTP in v2.                       |
-| UART debug              | ~200            | OSS (permissive) | Disabled in production bitstream.                             |
-| Timer + WDT             | ~150            | Proprietary      | RISC-V mtime/mtimecmp + 100ms watchdog.                       |
-| IRAM / DRAM             | BRAM only       | Inferred         | Separate address regions. No FPGA primitives.                 |
-| **TOTAL (Step 2, est.)**| **~23,000+ LUT**|                  | Full-hardware path. Does NOT fit MPFS025T (23k); fits ECP5-85K. |
+| Module                   | Est. LUTs        | Source           | Notes                                                           |
+| ------------------------ | ---------------- | ---------------- | --------------------------------------------------------------- |
+| Ibex RV32IMC             | ~3,500           | Apache 2.0 (OSS) | Control plane only. Not on crypto path. Synthesised via sv2v.   |
+| System Bus               | ~200             | Proprietary      | Custom Wishbone-lite + formal verification.                     |
+| Keccak/SHAKE engine      | ~10,200          | Proprietary      | Shared by all consumers. Full-width 1600-bit round.             |
+| NTT engine (shared)      | ~3,000           | Proprietary      | Parameterised for q=3329 and q=8380417.                         |
+| ML-KEM-768 controller    | ~1,500+          | Proprietary      | State machine. Drives NTT and Keccak engines.                   |
+| ML-DSA-65 controller     | ~2,000+          | Proprietary      | State machine. Rejection sampler. Drives NTT.                   |
+| Key Usage Enforcer       | ~200             | Proprietary      | HW policy engine. Enforces SIGN/DECAP/NO-EXPORT per slot.       |
+| TRNG                     | ~300             | Proprietary      | Ring oscillator. SP 800-90B RCT + APT health tests.             |
+| DRBG (SHAKE-256)         | ~200             | Proprietary      | Auto-reseed from TRNG. Entropy budgeting enforced.              |
+| SPI slave                | ~400             | Proprietary      | Mode 0/3. Command framing. 10 MHz target.                       |
+| Key store controller     | ~200 + BRAM      | Proprietary      | BRAM-backed. DMA-only access from crypto engines.               |
+| Boot ROM                 | ~100 + BRAM      | Proprietary      | Verilog ROM. PMP config. ML-DSA root key. Rollback counter.     |
+| Lifecycle state machine  | ~150             | Proprietary      | 4-state FSM. One-way transitions. HW enforced.                  |
+| Rollback counter         | ~100             | Proprietary      | Monotonic. BRAM-backed (v1). OTP in v2.                         |
+| UART debug               | ~200             | OSS (permissive) | Disabled in production bitstream.                               |
+| Timer + WDT              | ~150             | Proprietary      | RISC-V mtime/mtimecmp + 100ms watchdog.                         |
+| IRAM / DRAM              | BRAM only        | Inferred         | Separate address regions. No FPGA primitives.                   |
+| **TOTAL (Step 2, est.)** | **~23,000+ LUT** |                  | Full-hardware path. Does NOT fit MPFS025T (23k); fits ECP5-85K. |
 
 ---
 
