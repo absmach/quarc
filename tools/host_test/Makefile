@@ -3,7 +3,7 @@
 # Builds fw/mlkem_sw.c (the exact SoC firmware) against software models of the
 # sha3 / ntt coprocessors so the full ML-KEM-768 KAT self-test can run on any
 # host CPU - including the BeagleV-Fire's hard RISC-V cores. See
-# boards/beaglev-fire.md for the board bring-up instructions.
+# docs/guides/beaglev-fire-bringup.md for the board bring-up instructions.
 
 CC      ?= cc
 CFLAGS  ?= -O2 -Wall -Wextra

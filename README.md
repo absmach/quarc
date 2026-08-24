@@ -169,20 +169,20 @@ quarc/
 ├── Makefile
 ├── boards/
 │   ├── ulx3s.lpf          # ULX3S ECP5-85K pin constraints
-│   ├── beaglev-fire.md    # BeagleV-Fire bring-up guide (KAT self-test, MMIO map, checklist)
-│   └── beaglev-fire/      # BeagleV-Fire cape gateware + board tools (see boards/beaglev-fire.md)
+│   ├── beaglev-fire/      # BeagleV-Fire cape gateware + board tools (see docs/guides/)
 │       ├── gateware/
 │       │   ├── QUARC-CAPE.yaml         # build config for the openbeagle fork/CI
 │       │   ├── sources/.../CAPE/QUARC/ # cape HDL (CAPE.v, apb_quarc.v, sha3, ntt, keccak…)
 │       │   ├── patches/                # HSS (0001–0005) + MSS (.vh copy) build patches
 │       │   └── tb_apb_quarc.sv         # 269-check APB cape testbench
 │       └── tools/board/                # devmem_probe, quarc_kat, bench_sha3/ntt, verify_quarc_cape.sh
-├── doc/
-│   ├── README.md                       # documentation index
-│   ├── prd.md                          # product requirements v1.1 (mirrors root prd.md)
-│   ├── implementation-plan.md          # implementation plan v1.0 (mirrors root)
-│   ├── beaglev-fire-bringup.md         # board bring-up (mirrors boards/beaglev-fire.md)
-│   └── BEAGLEV-FIRE-GATEWARE-BUILD-FLASH-GUIDE.md  # full build→flash→verify process + benchmarks
+├── docs/
+│   ├── README.md                       # documentation index + status dashboard
+│   ├── prd.md                          # product requirements v1.1
+│   ├── implementation-plan.md          # implementation plan v1.0 (phases 0–8)
+│   └── guides/
+│       ├── beaglev-fire-bringup.md     # Guide 1: board bring-up (step by step)
+│       └── gateware-build-flash.md     # Guide 2: build → flash → verify → benchmarks
 ├── ibex/                  # Git submodule — do not edit
 │   └── rtl/               # Ibex SystemVerilog sources
 ├── rtl/                   # ALL Quarc RTL — Verilog 2005 only
@@ -398,12 +398,13 @@ Status legend: 🟢 verified · 🟡 code complete, awaiting verification · �
 | 7 — SPI + Channel   | Noise IK, AES-GCM, all 14 commands     | Encrypted session end-to-end            | ⚪ not started                                                                   |
 | 8 — Integration     | Secure boot, 24h soak, OTA demo        | All PRD v1.1 Section 9.5 criteria       | ⚪ not started                                                                   |
 
-**BeagleV-Fire Step 1 bring-up (2026-08-18/19):** cape gateware built, flashed and booted
+**BeagleV-Fire Step 1 bring-up (2026-08-18/20):** cape gateware built, flashed and booted
 on the board; fabric ID/status verified (`QUAR` @ `0x4110_0F00`); RTL proven via
-`tb_apb_quarc.sv` (269/269 PASS). The ML-KEM data path is **blocked pending a re-flash**
-with a bitstream built from this repo (the currently-flashed image is stale). See
-[`boards/beaglev-fire.md`](boards/beaglev-fire.md) and
-[`doc/BEAGLEV-FIRE-GATEWARE-BUILD-FLASH-GUIDE.md`](doc/BEAGLEV-FIRE-GATEWARE-BUILD-FLASH-GUIDE.md).
+`tb_apb_quarc.sv` (269/269 PASS). On silicon: SHA-3 correct, forward/inverse NTT
+256/256 correct; the **NTT basemul has a setup-timing violation** (−6.3 ns after the
+first pipelining fix) that blocks the full ML-KEM KAT on hardware. See
+[docs/guides/beaglev-fire-bringup.md](docs/guides/beaglev-fire-bringup.md) (Guide 1) and
+[docs/guides/gateware-build-flash.md](docs/guides/gateware-build-flash.md) §6.4 (Guide 2).
 
 ---
 
@@ -463,7 +464,7 @@ with a bitstream built from this repo (the currently-flashed image is stale). Se
 
 | Board        | FPGA                                   | Flow                           | Partition                                                                             | Status                                                                                                                                                                                                                    |
 | ------------ | -------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins)    | Step 1: crypto in C (`mlkem_sw.c` over sha3+ntt MMIO); no hw ML-KEM/ML-DSA controller | Cape gateware built + flashed; fabric ID/status verified on board; ML-KEM data path pending re-flash of a bitstream built from this repo (see `boards/beaglev-fire.md`, `doc/BEAGLEV-FIRE-GATEWARE-BUILD-FLASH-GUIDE.md`) |
+| BeagleV-Fire | Microchip PolarFire MPFS025T (23k LEs) | Microchip Libero (PDC pins)    | Step 1: crypto in C (`mlkem_sw.c` over sha3+ntt MMIO); no hw ML-KEM/ML-DSA controller | Cape gateware built + flashed; SHA-3 + fwd/inv NTT verified on silicon; **NTT basemul timing closure open** (see `docs/guides/gateware-build-flash.md` §6.4) |
 | ULX3S        | Lattice ECP5-85K (84k LUTs)            | yosys + nextpnr-ecp5 + ecppack | Step 2: move ML-KEM/ML-DSA/KUE/keystore/SPI back into fabric; C becomes thin driver   | Primary dev target; bitstream builds, 27 MHz                                                                                                                                                                              |
 
 For the BeagleV-Fire (Step 1), the SE runs in the PolarFire fabric and is driven

@@ -6,17 +6,16 @@ flashing it to the board, and verifying it on the target. It includes the toolch
 environment, the full list of issues encountered (and their fixes), the exact commands
 used, and benchmark results comparing the fabric against the CPU.
 
-> **Related docs:** [`README.md`](README.md) — documentation index ·
-> [`beaglev-fire-bringup.md`](beaglev-fire-bringup.md) — canonical board bring-up
-> (KAT self-test, MMIO map, checklist) · [`prd.md`](prd.md) · [`implementation-plan.md`](implementation-plan.md).
+> **Related docs:** [`docs/README.md`](../README.md) — documentation index ·
+> [`Guide 1: beaglev-fire-bringup.md`](beaglev-fire-bringup.md) — board bring-up
+> (KAT self-test, MMIO map, checklist) · [`prd.md`](../prd.md) · [`implementation-plan.md`](../implementation-plan.md).
 
-> **Status:** All steps verified end-to-end on 2026-08-18. The gateware builds, flashes,
-> and boots on the board. The fabric responds (ID/status registers verified). The cape RTL
-> is proven correct in simulation (269/269 `tb_apb_quarc.sv` checks pass, including the
-> SHA3-256 digest and 256-coefficient NTT KAT). The **bitstream currently flashed on the
-> board is stale** — it does not match the repo RTL, so the SHA-3/NTT data paths read back
-> zeros/incorrect values when probed via raw `/dev/mem`, and `quarc_kat` prints
-> `MLKEM SW FAIL`. Rebuild from this repo and re-flash to verify the data path (see §6.3).
+> **Status (2026-08-20):** All build/flash steps verified end-to-end. The gateware builds,
+> flashes, and boots on the board; fabric ID/status registers verified. On silicon:
+> SHA-3 correct and deterministic, forward/inverse NTT 256/256 correct.
+> **Open item:** NTT basemul fails 2/128 pairs nondeterministically — root-caused to a
+> setup-timing violation on the chained-modq path (§6.4). Full ML-KEM KAT on hardware
+> waits on timing closure (§7.5).
 
 ---
 
@@ -68,6 +67,32 @@ address `0x4110_0000`.
       rebuild, re-flash, then `verify_quarc_cape.sh` must print `MLKEM SW OK`. §6.4.
 - [ ] **Measured hardware benchmarks** — projected figures only (§7.3); need the timing
       closure above plus an IRQ-driven driver.
+
+## 1.2 The flow at a glance
+
+```
+ host (Arch Linux)                    container                    board (BeagleV-Fire)
+ ─────────────────                    ─────────                    ────────────────────
+ distrobox enter libero2204  ──►  Libero: synth → P&R ──►  scp artifacts ──►  update-gateware.sh
+      │                            export .spi/.dtbo                                │
+      ▼                                                                             ▼
+ edit cape HDL in the fork    ◄────── iterate ◄──────────────  reboot → probe "QUAR" → quarc_kat
+```
+
+The six commands that matter (detailed in the sections that follow):
+
+| # | Action                          | Command (host unless noted)                                   | Section |
+| - | ------------------------------- | ------------------------------------------------------------- | ------- |
+| 1 | Start the license daemons       | `lmgrd -c …` (one-time per boot; §3.3 script)                 | §3.3    |
+| 2 | Launch the build                | `distrobox enter libero2204 -- /tmp/run_build.sh`             | §4.2    |
+| 3 | Collect the artifacts           | `work/…/LinuxProgramming/{mpfs_bitstream.spi,mpfs_dtbo.spi}`  | §4.7    |
+| 4 | Copy to board + flash           | `scp` then `update-gateware.sh` on the board                  | §5.1    |
+| 5 | Verify fabric is live           | `sudo ./devmem_probe 0x41100F00` on the board                 | §6.2    |
+| 6 | Run the ML-KEM KAT              | `sudo ./quarc_kat` on the board                               | §6.3    |
+
+If a step fails, jump straight to §10 (troubleshooting checklist) or the
+per-section "Issue:" notes — every blocker hit during the real build is
+documented with its fix.
 
 ---
 
@@ -738,7 +763,7 @@ Paths are relative to this repository (`absmach/quarc`) unless noted.
 
 | Path                                                                                            | Purpose                                                         |
 | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `boards/beaglev-fire.md`                                                                        | canonical bring-up doc (KAT self-test, MMIO map, checklist)     |
+| `docs/guides/beaglev-fire-bringup.md`                                                           | Guide 1: bring-up doc (KAT self-test, MMIO map, checklist)      |
 | `boards/beaglev-fire/gateware/QUARC-CAPE.yaml`                                                  | build config; drop into fork as `custom-fpga-design/quarc.yaml` |
 | `boards/beaglev-fire/gateware/sources/FPGA-design/script_support/components/CAPE/QUARC/`        | cape HDL + `ADD_CAPE.tcl` + constraints + dtso                  |
 | `boards/beaglev-fire/gateware/patches/hss/*.patch`                                              | HSS patches `0001`–`0005` (incl. GCC-16 fixes)                  |

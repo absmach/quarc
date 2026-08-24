@@ -1,8 +1,25 @@
-# BeagleV-Fire (PolarFire MPFS025T) — Step 1 Bring-Up Test
+# Guide 1 — BeagleV-Fire (PolarFire MPFS025T) Step 1 Bring-Up
 
 How to bring up the Quarc **Step 1** partition on a BeagleV-Fire board from a
 Linux host: SSH in, run the ML-KEM-768 KAT self-test against the hardware MMIO
 firmware, and program the Step 1 gateware into the PolarFire fabric.
+
+> **Related docs:** [`docs/README.md`](../README.md) — documentation index ·
+> [`Guide 2: gateware-build-flash.md`](gateware-build-flash.md) — build/flash/verify
+> details, benchmarks, and the silicon timing investigation.
+
+## The five-step path (overview)
+
+| Step | What                                            | Where                    | You are done when…                          |
+| ---- | ----------------------------------------------- | ------------------------ | ------------------------------------------- |
+| 1    | Host self-test (no hardware)                    | your Linux host          | `HOST KAT: PASS`                            |
+| 2    | SoC-level simulation                            | your Linux host          | `MLKEM SW OK` on simulated UART *(slow)*    |
+| 3    | Build cape gateware                             | Libero / openbeagle CI   | `mpfs_bitstream.spi` exported               |
+| 4    | Flash the board & verify fabric is live         | BeagleV-Fire             | ID register reads `0x51554152` ("QUAR")     |
+| 5    | Run the ML-KEM KAT on the hard cores            | BeagleV-Fire             | `MLKEM SW OK`                               |
+
+Steps 1 and 4–5 are fully working today; step 2 is slow but works; step 5's
+full pass is blocked by an NTT basemul timing issue (see Guide 2 §6.4).
 
 ## Step 1 partition (two-step C/FPGA split)
 
@@ -268,13 +285,17 @@ match the buffers described in Section 1.
       **Verified:** `build/pnr.log` shows **17,963 LUT4 / 7,152 DFF** — fits the 23k MPFS025T.
 - [x] Quarc cape builds in Libero (`CAPE_OPTION:QUARC`) and exports
       `mpfs_bitstream.spi` + `mpfs_dtbo.spi`.
-      **Verified 2026-08-18:** build completed; artifacts produced (see the build/flash guide).
+      **Verified 2026-08-18:** build completed; artifacts produced (see [Guide 2](gateware-build-flash.md)).
 - [x] `change-gateware.sh` re-flashes the board and it reboots into the
       Quarc gateware (`0x4110_0F00` reads `"QUAR"`).
       **Verified 2026-08-18:** `devmem_probe 0x41100F00` reads `0x51554152` ("QUAR"),
       VER `0x00010000`; board stable after reboot.
 - [ ] Board harness run prints `MLKEM SW OK`.
-      **Blocked:** the bitstream currently flashed is stale — it does not match this repo's
-      RTL (data path returns wrong values; `quarc_kat` prints `MLKEM SW FAIL`). Rebuild from
-      this repo and re-flash, then re-run `tools/board/verify_quarc_cape.sh` (see the
-      build/flash guide §6.3).
+      **Partially verified 2026-08-19:** the gateware was rebuilt from this repo and
+      re-flashed. On silicon: SHA-3 correct (`sha3_256("abc")` = `a75d983a…` LE),
+      forward/inverse NTT **256/256 correct** — but basemul fails **2/128 pairs**
+      nondeterministically. Root cause: a **−16.5 ns setup-timing violation** on the
+      basemul's chained-modq path at the 18.781 ns cape clock (forward NTT uses a single
+      `modq` and is perfect). A pipelining fix in `ntt.v` improved the violation to
+      −6.3 ns but Synplify re-merged the pipeline stages — timing closure is still open.
+      See [Guide 2 §6.4](gateware-build-flash.md) for evidence, artifacts, and next steps.

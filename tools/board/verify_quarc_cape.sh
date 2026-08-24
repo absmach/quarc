@@ -2,7 +2,7 @@
 # verify_quarc_cape.sh - post-flash bring-up check for the Quarc cape.
 #
 # Run on the BeagleV-Fire after programming the QUARC gateware and rebooting
-# (see boards/beaglev-fire.md section 4.2):
+# (see docs/guides/beaglev-fire-bringup.md section 4.2):
 #
 #   sudo ./verify_quarc_cape.sh
 #
