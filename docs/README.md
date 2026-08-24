@@ -14,13 +14,15 @@ Secure Element lives in this `docs/` folder.
 | ------------------------------------------------- | ---------------------------------------------------------------------- | --------- |
 | Understand what Quarc is and why it exists        | [`prd.md`](prd.md) §1–§3 (overview → threat model)                     | ~20 min   |
 | Know exactly what gets built, phase by phase       | [`implementation-plan.md`](implementation-plan.md) ("How to Use" + Phase overview) | ~30 min |
+| Understand the SoC, memory map, command set        | [`architecture.md`](architecture.md)                                   | ~15 min   |
 | **Run the project's self-test on my machine**      | [Guide 1](guides/beaglev-fire-bringup.md) §1 (no hardware needed!)     | ~5 min    |
 | Bring up a BeagleV-Fire board from scratch         | [Guide 1](guides/beaglev-fire-bringup.md) (follow top to bottom)        | ~1 h      |
 | Build & flash the FPGA gateware                    | [Guide 2](guides/gateware-build-flash.md) §2–§5 (follow top to bottom)  | half a day |
 | Check current progress / what's blocked            | [Status dashboard](#current-status) below                              | 2 min     |
 
 **Suggested order for newcomers:** PRD (what & why) → Implementation Plan (how)
-→ Guide 1 (bring up hardware) → Guide 2 (build/flash/benchmark).
+→ Architecture (technical reference) → Guide 1 (bring up hardware) →
+Guide 2 (build/flash/benchmark).
 
 ---
 
@@ -30,6 +32,7 @@ Secure Element lives in this `docs/` folder.
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | [`prd.md`](prd.md)                                   | **Product Requirements v1.1** — product definition, objectives, threat model, architecture, security policy, functional/non-functional requirements, design decisions, test strategy, development phases, glossary |
 | [`implementation-plan.md`](implementation-plan.md)    | **Implementation Plan v1.0** — phase-by-phase build plan (Phase 0–8) written for automated execution: repo structure, memory map, register maps, per-phase tasks with acceptance criteria |
+| [`architecture.md`](architecture.md)                  | **Architecture & Technical Reference** — SoC diagram, two-step deployment plan (Step 1/Step 2), measured LUT budgets, memory map, SPI command set, security properties, performance targets, toolchain, RTL conventions, limitations & roadmap |
 | [`guides/beaglev-fire-bringup.md`](guides/beaglev-fire-bringup.md) | **Guide 1 — Board Bring-Up**: host self-test → SoC simulation → cape gateware layout → MMIO map → on-board KAT → checklist |
 | [`guides/gateware-build-flash.md`](guides/gateware-build-flash.md) | **Guide 2 — Build / Flash / Verify / Benchmark**: container setup, FlexNet license fix, Libero build, flashing, on-board verification, benchmarks, silicon timing investigation (§6.4), rollback |
 
@@ -52,14 +55,19 @@ ML-KEM-on-hardware is an NTT basemul **timing violation** (details in
 
 ### Implementation phases
 
-| Phase | Title                                | Status                                                            |
-| ----- | ------------------------------------ | ----------------------------------------------------------------- |
-| 0     | Repository & build foundation        | ✅ Done                                                           |
-| 1     | Keccak / SHA-3 / SHAKE engine        | ✅ Done — RTL sim + **silicon verified** (`sha3_256("abc")` correct) |
-| 2     | Entropy system (TRNG + DRBG)         | ⏸ Deferred (Step 1 runs KATs only; needed before real keygen)      |
-| 3     | NTT engine                           | 🟡 RTL done & sim-verified; **silicon timing closure open** (basemul −6.3 ns, see Guide 2 §6.4) |
-| 4     | ML-KEM-768                           | 🟡 Software path passes (host KAT); hardware path blocked by Phase 3 timing |
-| 5–8   | ML-DSA-65, security policy, SPI/host, secure boot | ⬜ Not started                                       |
+Status legend: ✅ verified · 🟡 code complete, awaiting verification · 🔵 in progress · ⚪ not started
+
+| Phase | Deliverable                            | Key Exit Gate                           | Status                                                                           |
+| ----- | -------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| 0 — Foundation      | Ibex boots on ULX3S, UART "QUARC v0"   | Physical board test                     | ✅ sim + synth + PnR verified (26.9 MHz)                                         |
+| 1 — Keccak          | SHA-3/SHAKE engine                     | 100% NIST SHA-3 KAT + SymbiYosys proof  | ✅ 72/72 KAT, formal BMC, bus-wired, firmware self-test passes; **silicon verified** |
+| 2 — Entropy         | TRNG + SHAKE-256 DRBG                  | SP 800-22 pass + DRBG KAT               | ✅ RCT/APT health, formal BMC, DRBG KAT, SoC firmware test, SP 800-22 17/17 PASS *(deferred from Step 1 bring-up build)* |
+| 3 — NTT             | Shared NTT/iNTT engine                 | NTT(iNTT(p))==p + zeroization formal    | 🟡 bus-wired, firmware round-trip passes, KAT 4/4, 2.5k LUTs; **basemul silicon timing open** ([Guide 2 §6.4](guides/gateware-build-flash.md)); formal pending |
+| 4 — ML-KEM          | ML-KEM-768 + KUE integration           | 100% FIPS 203 KAT + KUE rejection tests | 🟡 software path (`mlkem_sw.c`) verified (host KAT PASS); hardware-controller increment not started |
+| 5 — ML-DSA          | ML-DSA-65 + hardware rejection sampler | 100% FIPS 204 KAT + timing at 50 MHz    | ⚪ not started                                                                   |
+| 6 — Security Policy | KUE, PMP, lifecycle, rollback formal   | All 6 SymbiYosys proofs pass            | ⚪ not started                                                                   |
+| 7 — SPI + Channel   | Noise IK, AES-GCM, all 14 commands     | Encrypted session end-to-end            | ⚪ not started                                                                   |
+| 8 — Integration     | Secure boot, 24h soak, OTA demo        | All PRD v1.1 Section 9.5 criteria       | ⚪ not started                                                                   |
 
 ### Board verification checklist (Step 1)
 
