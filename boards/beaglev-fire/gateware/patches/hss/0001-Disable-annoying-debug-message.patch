@@ -1,0 +1,25 @@
+From 5dfb28aa4da7bb461e7ce13fba561ee6d68223cb Mon Sep 17 00:00:00 2001
+From: Lars Randers <lranders@mail.dk>
+Date: Sun, 20 Apr 2025 15:18:46 +0200
+Subject: [PATCH] Disable annoying debug message
+
+---
+ boards/mpfs-beaglev-fire/def_config | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/boards/mpfs-beaglev-fire/def_config b/boards/mpfs-beaglev-fire/def_config
+index fda399a8..b652b060 100644
+--- a/boards/mpfs-beaglev-fire/def_config
++++ b/boards/mpfs-beaglev-fire/def_config
+@@ -227,7 +227,7 @@ CONFIG_COMPRESSION_MINIZ=y
+ # Debug Options
+ #
+ CONFIG_DEBUG_LOG_STATE_TRANSITIONS=y
+-CONFIG_DEBUG_LOOP_TIMES=y
++# CONFIG_DEBUG_LOOP_TIMES is not set
+ CONFIG_DEBUG_LOOP_TIMES_THRESHOLD=2500000
+ # CONFIG_DEBUG_IPI_STATS is not set
+ # CONFIG_DEBUG_CHUNK_DOWNLOADS is not set
+-- 
+2.34.1
+

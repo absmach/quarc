@@ -19,7 +19,7 @@ This document is the single source of truth for implementing Quarc v1. Each task
 
 1. Never start Task N+1 until Task N passes all acceptance criteria
 2. Never skip acceptance criteria — they exist to catch integration bugs early
-3. If a task is ambiguous, refer to the PRD (Quarc_PRD_v1.1.md) for the authoritative definition
+3. If a task is ambiguous, refer to the PRD ([`prd.md`](prd.md)) for the authoritative definition
 4. All RTL files are Verilog 2005 — no SystemVerilog constructs in any file under `rtl/`
 5. Ibex is the only exception — it lives under `ibex/` and is converted by sv2v, never edited
 

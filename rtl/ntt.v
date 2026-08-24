@@ -81,6 +81,8 @@ module ntt (
     reg [11:0] a0, a1, b0, b1;
     reg [11:0] ca, cb;
     reg [11:0] zeta_sel;
+    reg [11:0] m_p0, m_p1, m_p1z;
+    reg [11:0] m_q0, m_q1;
     reg [8:0]  addr_a, addr_b;
     reg        we_fsm;
     reg [8:0]  wa_fsm;
@@ -146,8 +148,8 @@ module ntt (
             OP_FWD: zeta_sel = zget(cumf(L) + fblock + 1);
             OP_INV: zeta_sel = zget(127 - (cumi(L) + iblock));
             OP_MUL: begin
-                zeta_sel = zget(64 + widx[7:1]);     // 64 + (p >> 1)
-                if (widx[0]) zeta_sel = Q - zeta_sel; // odd pairs negate
+                zeta_sel = zget(64 + widx[7:1]);
+                if (widx[0]) zeta_sel = Q - zeta_sel;
             end
             default: zeta_sel = 12'h0;
         endcase
@@ -195,15 +197,17 @@ module ntt (
         end
     endfunction
 
-    // ---------------- datapath (combinational) ----------------
+    // ---------------- datapath ----------------
+    // forward/inverse butterflies use a single modq per cycle (meets timing);
+    // basemul splits the two chained modq stages (a1*b1 then *zeta) across
+    // pipeline cycles so each stage is one modq deep.
     wire [11:0] fwd_t  = modq(zeta_sel * b);
     wire [11:0] inv_t  = modq(zeta_sel * subq(b, a));
-    wire [11:0] m_p0   = modq(a0 * b0);
-    wire [11:0] m_p1   = modq(a1 * b1);
-    wire [11:0] m_p1z  = modq(m_p1 * zeta_sel);
-    wire [11:0] m_q0   = modq(a0 * b1);
-    wire [11:0] m_q1   = modq(a1 * b0);
     wire [11:0] scale_t = modq(ra_d * F_INV);
+    wire [11:0] p0_t   = modq(a0 * b0);
+    wire [11:0] p1_t   = modq(a1 * b1);
+    wire [11:0] q0_t   = modq(a0 * b1);
+    wire [11:0] q1_t   = modq(a1 * b0);
 
     always @(*) begin
         case (op)
@@ -231,6 +235,8 @@ module ntt (
             a <= 12'd0; b <= 12'd0;
             a0 <= 12'd0; a1 <= 12'd0; b0 <= 12'd0; b1 <= 12'd0;
             ra <= 9'd0; rb <= 9'd0;
+            m_p0 <= 12'd0; m_p1 <= 12'd0; m_p1z <= 12'd0;
+            m_q0 <= 12'd0; m_q1 <= 12'd0;
         end else begin
             we_fsm <= 1'b0;
             case (st)
@@ -279,10 +285,12 @@ module ntt (
                         end
                         3'd3: begin
                             if (op == OP_MUL) begin
-                                we_fsm <= 1'b1;
-                                wa_fsm <= addr_a;
-                                wd_fsm <= ca;
-                                ph     <= 3'd4;
+                                // pipeline stage 1: one modq per product
+                                m_p0 <= p0_t;
+                                m_p1 <= p1_t;
+                                m_q0 <= q0_t;
+                                m_q1 <= q1_t;
+                                ph   <= 3'd4;
                             end else begin
                                 we_fsm <= 1'b1;
                                 wa_fsm <= addr_b;
@@ -301,16 +309,37 @@ module ntt (
                                 end
                             end
                         end
-                        3'd4: begin   // mul: second write
+                        3'd4: begin   // mul: pipeline stage 2 - chained modq from reg
+                            if (op == OP_MUL) begin
+                                m_p1z <= modq(m_p1 * zeta_sel);
+                                ph    <=  3'd5;
+                            end else begin
+                                ph <= 3'd0;
+                            end
+                        end
+                        3'd5: begin   // mul: first write
+                            we_fsm <= 1'b1;
+                            wa_fsm <= addr_a;
+                            wd_fsm <= ca;
+                            ph     <= 3'd6;
+                        end
+                        3'd6: begin   // mul: second write
                             we_fsm <= 1'b1;
                             wa_fsm <= addr_b;
                             wd_fsm <= cb;
                             if (widx == 10'd127) begin
-                                st <= ST_DONE;
+                                // Ensure the final write to addr_b commits before
+                                // done is visible: hold one extra cycle, then
+                                // transition to ST_DONE (fixes a read-before-write
+                                // race observed on real silicon, not in sim).
+                                ph <= 3'd7;
                             end else begin
                                 widx <= widx + 10'd1;
                                 ph   <= 3'd0;
                             end
+                        end
+                        3'd7: begin   // mul: write-commit settle before done
+                            st <= ST_DONE;
                         end
                         default: ph <= 3'd0;
                     endcase

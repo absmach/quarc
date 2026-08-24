@@ -1,0 +1,33 @@
+From 351f824624d0d349d284aa9f2b949c26769f0b69 Mon Sep 17 00:00:00 2001
+From: Lars Randers <lranders@mail.dk>
+Date: Mon, 20 Oct 2025 13:11:46 +0200
+Subject: [PATCH] IOMUX: SPI 1 drives pins 30, 32 and 33
+
+- Prevent HSS giving back pad control to QSPI; we want SPI_1 to drive em
+
+Signed-off-by: Lars Randers <lranders@mail.dk>
+---
+ boards/mpfs-beaglev-fire/mpfs_hal_config/mss_sw_config.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/boards/mpfs-beaglev-fire/mpfs_hal_config/mss_sw_config.h b/boards/mpfs-beaglev-fire/mpfs_hal_config/mss_sw_config.h
+index 66be7a59..6dbff7ff 100644
+--- a/boards/mpfs-beaglev-fire/mpfs_hal_config/mss_sw_config.h
++++ b/boards/mpfs-beaglev-fire/mpfs_hal_config/mss_sw_config.h
+@@ -222,10 +222,10 @@
+ #endif
+ 
+ /*
+- * Override QSPI chip select IOMUX to allow QSPI's chip select to be controlled
+- * using MSS GPIO_0[12].
++ * Override SPI_1 chip select IOMUX to allow SPI's chip select to be controlled
++ * using MSS GPIO_1[17].
+  */
+-#define LIBERO_SETTING_IOMUX5_CR    0xB88B22B2UL
++#define LIBERO_SETTING_IOMUX5_CR    0xB88B33B3UL
+ 
+ #endif /* USER_CONFIG_MSS_USER_CONFIG_H_ */
+ 
+-- 
+2.34.1
+

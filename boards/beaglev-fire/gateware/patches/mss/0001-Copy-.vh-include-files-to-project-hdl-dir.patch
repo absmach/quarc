@@ -1,0 +1,27 @@
+From 2e3c1f597df3f9ba68a8e3da3384c4c3807d4db9 Mon Sep 17 00:00:00 2001
+From: rodney <rodney@elgon>
+Date: Tue, 18 Aug 2026 13:57:51 +0300
+Subject: [PATCH] Copy .vh include files to project hdl dir
+
+---
+ scripts/hdl_source.tcl | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/scripts/hdl_source.tcl b/scripts/hdl_source.tcl
+index 1ee5c4e..1a58cb8 100644
+--- a/scripts/hdl_source.tcl
++++ b/scripts/hdl_source.tcl
+@@ -34,6 +34,10 @@ foreach file [glob -nocomplain -type f [file join $current_dir "script_support"
+     import_files -convert_EDN_to_HDL 0 -library {work} -hdl_source $file
+ }
+ 
++foreach file [glob -nocomplain -type f [file join $current_dir "script_support" "components" "CAPE" $cape_option "HDL" "*.vh"]] {
++    file copy -force $file [file join $project_dir "hdl" [file tail $file]]
++}
++
+ build_design_hierarchy 
+ 
+ create_hdl_core -file [file join $project_dir "hdl" "apb_arbiter.v"] -module {APB_ARBITER} -library {work} -package {} 
+-- 
+2.55.0
+

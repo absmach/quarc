@@ -23,6 +23,8 @@ HSS:
         common:
             - 0001-Disable-annoying-debug-message.patch
             - 0002-Bring-back-old-DESIGNVER-formatting.patch
+            - 0004-Fix-build-with-GCC-16-C11-std-explicit-zicsr-zifence.patch
+            - 0005-Force-elf64lriscv-emulation-when-embedding-DTB.patch
         variants:
             default:
                 - 0003-IOMUX-SPI-1-drives-pins-30-32-and-33.patch
@@ -31,6 +33,11 @@ MSS:
     type: git
     local: sources/FPGA-design/mss.bundle
     branch: default
+    patches:
+        common:
+            - 0001-Copy-.vh-include-files-to-project-hdl-dir.patch
+        variants:
+            default: []
 gateware:
     type: sources
     build-args: "M2_OPTION:NONE CAPE_OPTION:QUARC"

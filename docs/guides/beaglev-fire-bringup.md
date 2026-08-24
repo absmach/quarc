@@ -1,8 +1,24 @@
-# BeagleV-Fire (PolarFire MPFS025T) — Step 1 Bring-Up Test
+# Guide 1 — BeagleV-Fire (PolarFire MPFS025T) Step 1 Bring-Up
 
 How to bring up the Quarc **Step 1** partition on a BeagleV-Fire board from a
 Linux host: SSH in, run the ML-KEM-768 KAT self-test against the hardware MMIO
 firmware, and program the Step 1 gateware into the PolarFire fabric.
+
+Build/flash details, benchmarks, and the silicon timing investigation are in
+[Guide 2](gateware-build-flash.md).
+
+## The five steps
+
+| Step | What                        | Where                  | Done when                                |
+| ---- | --------------------------- | ---------------------- | ---------------------------------------- |
+| 1    | Host self-test              | your Linux host        | `HOST KAT: PASS`                         |
+| 2    | SoC-level simulation        | your Linux host        | `MLKEM SW OK` on simulated UART _(slow)_ |
+| 3    | Build cape gateware         | Libero / openbeagle CI | `mpfs_bitstream.spi` exported            |
+| 4    | Flash and verify fabric     | BeagleV-Fire           | ID register reads `0x51554152` ("QUAR")  |
+| 5    | Run the ML-KEM KAT on board | BeagleV-Fire           | `MLKEM SW OK`                            |
+
+Steps 1 and 4–5 work today. Step 2 works but is slow. Step 5's full pass is
+blocked by an NTT basemul timing issue (see Guide 2 §6.4).
 
 ## Step 1 partition (two-step C/FPGA split)
 
@@ -142,12 +158,12 @@ and has the cape `ADD_CAPE.tcl` sourced from the MSS recursive build with a
 
 Cape window register map (`paddr[11:0]`):
 
-| Offset    | Access | Content                       |
-| --------- | ------ | ----------------------------- |
-| `0x0000`–`0x001F` | sha3 | CTRL, STATUS, MODE, DATA_IN, DATA_OUT, LEN, SQ_LEN, IRQ_EN |
-| `0x0800`–`0x081F` | ntt  | CTRL, STATUS, COEFF           |
-| `0x0F00`  | RO     | `ID` = `0x5155_4152` (`"QUAR"`) |
-| `0x0F04`  | RO     | `VER` = `0x0001_0000`         |
+| Offset            | Access | Content                                                    |
+| ----------------- | ------ | ---------------------------------------------------------- |
+| `0x0000`–`0x001F` | sha3   | CTRL, STATUS, MODE, DATA_IN, DATA_OUT, LEN, SQ_LEN, IRQ_EN |
+| `0x0800`–`0x081F` | ntt    | CTRL, STATUS, COEFF                                        |
+| `0x0F00`          | RO     | `ID` = `0x5155_4152` (`"QUAR"`)                            |
+| `0x0F04`          | RO     | `VER` = `0x0001_0000`                                      |
 
 The bridge strobes the peripherals on the APB setup phase (`psel && !penable`)
 so each transfer commits once, and drives `PRDATA` combinationally from the
@@ -164,16 +180,22 @@ bitstream for every yaml in `custom-fpga-design/` on their Libero runner
 1. Fork `openbeagle.org/beaglev-fire/gateware` (new GitLab users must be
    manually approved before they can fork — request via the forum thread linked
    in the docs).
-2. Add the cape and the build config to the fork:
+2. Add the cape, the build config, and the required HSS/MSS patches to the fork:
    ```
    cp -r boards/beaglev-fire/gateware/sources/FPGA-design/script_support/components/CAPE/QUARC \
       <fork>/sources/FPGA-design/script_support/components/CAPE/QUARC
    cp boards/beaglev-fire/gateware/QUARC-CAPE.yaml <fork>/custom-fpga-design/quarc.yaml
+   cp -r boards/beaglev-fire/gateware/patches <fork>/patches
    ```
    The yaml mirrors current `main`'s `my_custom_fpga_design.yaml` (pinned HSS
    with patches + `MSS: local: sources/FPGA-design/mss.bundle`), only with
-   `CAPE_OPTION:QUARC`. The CI passes `BOARD:mpfs-beaglev-fire` for forks, so
-   the cape constraint must live under `constraints/mpfs-beaglev-fire/`.
+   `CAPE_OPTION:QUARC`. It additionally references **five** HSS patches
+   (`0001`–`0005`, including the GCC-16 `zicsr/zifencei` and `elf64lriscv`
+   fixes) and the **MSS `0001-Copy-.vh-include-files-to-project-hdl-dir.patch`**
+   which copies `ntt_zetas.vh` into the Libero project so Synplify can resolve
+   the `` `include `` — all shipped under `boards/beaglev-fire/gateware/patches/`
+   and copied to the fork root above. The CI passes `BOARD:mpfs-beaglev-fire`
+   for forks, so the cape constraint must live under `constraints/mpfs-beaglev-fire/`.
 3. Commit and push. The `build-job` runner produces an artifact containing
    `artifacts/bitstreams/quarc/LinuxProgramming/{mpfs_bitstream.spi,mpfs_dtbo.spi}`
    (the `quarc` name follows the yaml filename; `mpfs_dtbo.spi` includes
@@ -219,6 +241,7 @@ bitstream for every yaml in `custom-fpga-design/` on their Libero runner
 
 `fw/mlkem_sw.c` drives the sha3/ntt coprocessors over MMIO. For the board it
 is built with `-DBVF_MMIO`, which
+
 - redirects `put32`/`get32` through an `mmap` of `/dev/mem` (the two fabric
   bases share the single 4 KiB page at `0x4110_0000`), and
 - re-bases `SHA3_BASE`/`NTT_BASE` to `0x4110_0000` / `0x4110_0800`, and
@@ -252,11 +275,27 @@ match the buffers described in Section 1.
 
 ### 4.4 Expected bring-up checklist
 
-- [ ] `make run` in `tools/host_test` prints `HOST KAT: PASS` (Section 1).
+- [x] `make run` in `tools/host_test` prints `HOST KAT: PASS` (Section 1).
+      **Verified 2026-08-19:** outputs `MLKEM SW OK` / `HOST KAT: PASS`.
 - [ ] `make sim-mlkem-sw-soc` prints `MLKEM SW OK` in simulation (Section 2).
-- [ ] `make synth-step1` reports the Section 3 fit.
-- [ ] Quarc cape builds in Libero (`CAPE_OPTION:QUARC`) and exports
+      _In progress:_ the full ML-KEM-768 KAT through the Ibex SoC RTL sim is very slow
+      (>7 min without completing). The cape APB bridge itself is verified by
+      `tb_apb_quarc.sv` (269/269 PASS); this SoC-level KAT still needs a longer run.
+- [x] `make synth-step1` reports the Section 3 fit.
+      **Verified:** `build/pnr.log` shows **17,963 LUT4 / 7,152 DFF** — fits the 23k MPFS025T.
+- [x] Quarc cape builds in Libero (`CAPE_OPTION:QUARC`) and exports
       `mpfs_bitstream.spi` + `mpfs_dtbo.spi`.
-- [ ] `change-gateware.sh` re-flashes the board and it reboots into the
+      **Verified 2026-08-18:** build completed; artifacts produced (see [Guide 2](gateware-build-flash.md)).
+- [x] `change-gateware.sh` re-flashes the board and it reboots into the
       Quarc gateware (`0x4110_0F00` reads `"QUAR"`).
+      **Verified 2026-08-18:** `devmem_probe 0x41100F00` reads `0x51554152` ("QUAR"),
+      VER `0x00010000`; board stable after reboot.
 - [ ] Board harness run prints `MLKEM SW OK`.
+      **Partially verified 2026-08-19:** the gateware was rebuilt from this repo and
+      re-flashed. On silicon: SHA-3 correct (`sha3_256("abc")` = `a75d983a…` LE),
+      forward/inverse NTT **256/256 correct** — but basemul fails **2/128 pairs**
+      nondeterministically. Root cause: a **−16.5 ns setup-timing violation** on the
+      basemul's chained-modq path at the 18.781 ns cape clock (forward NTT uses a single
+      `modq` and is perfect). A pipelining fix in `ntt.v` improved the violation to
+      −6.3 ns but Synplify re-merged the pipeline stages — timing closure is still open.
+      See [Guide 2 §6.4](gateware-build-flash.md) for evidence, artifacts, and next steps.
