@@ -427,3 +427,20 @@ quarc/
 - **v2 — Hardened SE:** PUF, real OTP/NVM, tamper detection, side-channel countermeasures (Boolean masking), SLH-DSA, Common Criteria EAL4+ path
 - **v3 — TEE Root of Trust:** PQC attestation for AMD SEV-SNP / Intel TDX / Arm CCA; sealing keys; PCIe/I3C interface
 - **ASIC:** No RTL rewrite required (P5 principle). 40nm or 22nm FD-SOI. FIPS 140-3 Level 3.
+
+---
+
+## Licensing
+
+Quarc is open source under two permissive licenses:
+
+| Content                                                      | License        | File               |
+| ------------------------------------------------------------ | -------------- | ------------------ |
+| RTL and gateware (`rtl/`, `boards/*/gateware`)               | CERN-OHL-P 2.0 | `LICENSE-HARDWARE` |
+| Firmware, tools, scripts, testbenches, formal, documentation | Apache-2.0     | `LICENSE`          |
+
+The Ibex CPU core (`ibex/` submodule) stays under its own Apache-2.0 license
+(lowRISC). The synthesizable path uses only permissive-licensed components
+(MIT, ISC, BSD, Apache 2.0); no GPL or LGPL in the synthesis path. GPL tools
+(Icarus, GTKWave, GCC) apply only to the tool binaries themselves — not to RTL
+or firmware produced by them.

@@ -1890,4 +1890,4 @@ Create `fw/hal.h`:
 
 ---
 
-_Quarc Implementation Plan v1.0 // 2025 // Proprietary & Confidential_
+_Quarc Implementation Plan v1.0 // 2025 // Apache-2.0 / CERN-OHL-P 2.0_

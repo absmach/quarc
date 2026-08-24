@@ -15,14 +15,14 @@
 | Field              | Value                                                                                                                                                                                              |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Document           | Quarc PRD v1.1                                                                                                                                                                                     |
-| Status             | DRAFT — Internal Only                                                                                                                                                                              |
-| Classification     | Proprietary & Confidential                                                                                                                                                                         |
+| Status             | DRAFT                                                                                                                                                                                              |
+| Classification     | Public — open source                                                                                                                                                                               |
 | FPGA Board         | ULX3S — Lattice ECP5-85K (84K LUTs) + BeagleV-Fire — PolarFire MPFS025T (23k LEs, Step 1)                                                                                                          |
 | CPU                | Ibex RV32IMC (Apache 2.0, via sv2v + Yosys)                                                                                                                                                        |
 | HDL Language       | Verilog 2005 (all Quarc RTL) + sv2v for Ibex CPU only                                                                                                                                              |
 | Toolchain          | Yosys + nextpnr + sv2v + SymbiYosys + Icarus — 100% open source                                                                                                                                    |
 | Build System       | GNU Make — single Makefile                                                                                                                                                                         |
-| IP License Model   | Commercial closed IP — permissive OSS components only (MIT/ISC/BSD/Apache 2.0)                                                                                                                     |
+| IP License Model   | Apache-2.0 (firmware, tools, docs) + CERN-OHL-P 2.0 (RTL, gateware) — permissive OSS components only (MIT/ISC/BSD/Apache 2.0)                                                                      |
 | PQC Standards      | FIPS 203 ML-KEM-768 \| FIPS 204 ML-DSA-65                                                                                                                                                          |
 | Comparable Product | TROPIC01 by Tropic Square — extended with PQC                                                                                                                                                      |
 | Changelog          | v1.1: PMP policy table, hardware key usage enforcement, device lifecycle model, secure boot rollback protection, NTT zeroization, entropy budgeting, bus protocol definition, concrete v1 use case |
@@ -67,7 +67,6 @@ Quarc is a post-quantum Secure Element: a cryptographic coprocessor that integra
 ### 1.3 What Quarc Is Not
 
 - Not a clone of TROPIC01 — different crypto subsystem, same market positioning
-- Not open-source — closed commercial IP built on permissive-licensed open components
 - Not OpenTitan — deliberately lean, no SystemVerilog, no Bazel, fully open toolchain
 - Not a finished product in v1 — v1 is an FPGA prototype proving architecture and PQC correctness
 - Not a general-purpose MCU — Quarc is a cryptographic coprocessor, not a compute platform
@@ -307,21 +306,21 @@ Single-master Wishbone-lite bus. Ibex is the only bus master. All peripherals ar
 | Module                   | Est. LUTs        | Source           | Notes                                                           |
 | ------------------------ | ---------------- | ---------------- | --------------------------------------------------------------- |
 | Ibex RV32IMC             | ~3,500           | Apache 2.0 (OSS) | Control plane only. Not on crypto path. Synthesised via sv2v.   |
-| System Bus               | ~200             | Proprietary      | Custom Wishbone-lite + formal verification.                     |
-| Keccak/SHAKE engine      | ~10,200          | Proprietary      | Shared by all consumers. Full-width 1600-bit round.             |
-| NTT engine (shared)      | ~3,000           | Proprietary      | Parameterised for q=3329 and q=8380417.                         |
-| ML-KEM-768 controller    | ~1,500+          | Proprietary      | State machine. Drives NTT and Keccak engines.                   |
-| ML-DSA-65 controller     | ~2,000+          | Proprietary      | State machine. Rejection sampler. Drives NTT.                   |
-| Key Usage Enforcer       | ~200             | Proprietary      | HW policy engine. Enforces SIGN/DECAP/NO-EXPORT per slot.       |
-| TRNG                     | ~300             | Proprietary      | Ring oscillator. SP 800-90B RCT + APT health tests.             |
-| DRBG (SHAKE-256)         | ~200             | Proprietary      | Auto-reseed from TRNG. Entropy budgeting enforced.              |
-| SPI slave                | ~400             | Proprietary      | Mode 0/3. Command framing. 10 MHz target.                       |
-| Key store controller     | ~200 + BRAM      | Proprietary      | BRAM-backed. DMA-only access from crypto engines.               |
-| Boot ROM                 | ~100 + BRAM      | Proprietary      | Verilog ROM. PMP config. ML-DSA root key. Rollback counter.     |
-| Lifecycle state machine  | ~150             | Proprietary      | 4-state FSM. One-way transitions. HW enforced.                  |
-| Rollback counter         | ~100             | Proprietary      | Monotonic. BRAM-backed (v1). OTP in v2.                         |
+| System Bus               | ~200             | CERN-OHL-P 2.0   | Custom Wishbone-lite + formal verification.                     |
+| Keccak/SHAKE engine      | ~10,200          | CERN-OHL-P 2.0   | Shared by all consumers. Full-width 1600-bit round.             |
+| NTT engine (shared)      | ~3,000           | CERN-OHL-P 2.0   | Parameterised for q=3329 and q=8380417.                         |
+| ML-KEM-768 controller    | ~1,500+          | CERN-OHL-P 2.0   | State machine. Drives NTT and Keccak engines.                   |
+| ML-DSA-65 controller     | ~2,000+          | CERN-OHL-P 2.0   | State machine. Rejection sampler. Drives NTT.                   |
+| Key Usage Enforcer       | ~200             | CERN-OHL-P 2.0   | HW policy engine. Enforces SIGN/DECAP/NO-EXPORT per slot.       |
+| TRNG                     | ~300             | CERN-OHL-P 2.0   | Ring oscillator. SP 800-90B RCT + APT health tests.             |
+| DRBG (SHAKE-256)         | ~200             | CERN-OHL-P 2.0   | Auto-reseed from TRNG. Entropy budgeting enforced.              |
+| SPI slave                | ~400             | CERN-OHL-P 2.0   | Mode 0/3. Command framing. 10 MHz target.                       |
+| Key store controller     | ~200 + BRAM      | CERN-OHL-P 2.0   | BRAM-backed. DMA-only access from crypto engines.               |
+| Boot ROM                 | ~100 + BRAM      | CERN-OHL-P 2.0   | Verilog ROM. PMP config. ML-DSA root key. Rollback counter.     |
+| Lifecycle state machine  | ~150             | CERN-OHL-P 2.0   | 4-state FSM. One-way transitions. HW enforced.                  |
+| Rollback counter         | ~100             | CERN-OHL-P 2.0   | Monotonic. BRAM-backed (v1). OTP in v2.                         |
 | UART debug               | ~200             | OSS (permissive) | Disabled in production bitstream.                               |
-| Timer + WDT              | ~150             | Proprietary      | RISC-V mtime/mtimecmp + 100ms watchdog.                         |
+| Timer + WDT              | ~150             | CERN-OHL-P 2.0   | RISC-V mtime/mtimecmp + 100ms watchdog.                         |
 | IRAM / DRAM              | BRAM only        | Inferred         | Separate address regions. No FPGA primitives.                   |
 | **TOTAL (Step 2, est.)** | **~23,000+ LUT** |                  | Full-hardware path. Does NOT fit MPFS025T (23k); fits ECP5-85K. |
 
@@ -1007,4 +1006,4 @@ formal:
 
 ---
 
-_Quarc Secure Element // PRD v1.1 // 2025 // Proprietary & Confidential_
+_Quarc Secure Element // PRD v1.1 // 2025 // Apache-2.0 / CERN-OHL-P 2.0_
