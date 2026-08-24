@@ -52,3 +52,13 @@ All documentation is under [`docs/`](docs/README.md):
 - [Architecture reference](docs/architecture.md)
 - [Guide 1: board bring-up](docs/guides/beaglev-fire-bringup.md)
 - [Guide 2: gateware build, flash, verify](docs/guides/gateware-build-flash.md)
+
+## License
+
+Open source under two licenses:
+
+- **Apache-2.0** (`LICENSE`) — firmware, tools, scripts, testbenches, documentation
+- **CERN Open Hardware Licence v2 - Permissive** (`LICENSE-HARDWARE`) — all RTL and gateware (`rtl/`, `boards/*/gateware`)
+
+Both are permissive; the synthesis path uses only MIT/ISC/BSD/Apache-2.0
+components (no GPL/LGPL).
